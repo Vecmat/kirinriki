@@ -1,0 +1,29 @@
+{
+    "name": "kirinriki",
+    "version": "1.0.0",
+    "description": "基于Hono框架实现一个企业级的typescript web框架，名称定为Kirinriki,参考koatty实现（文档在koatty.md）",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "build:example": "tsc -p tsconfig.example.json",
+        "example": "npm run build:example && node dist-example/example/app.js",
+        "dev": "npm run example",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@hono/node-server": "^2.1.1",
+        "hono": "^4.13.9",
+        "reflect-metadata": "^0.2.2",
+        "zod": "^4.6.5"
+    },
+    "devDependencies": {
+        "@types/node": "^26.6.2",
+        "@types/reflect-metadata": "^0.0.5",
+        "ts-node": "^10.9.2",
+        "typescript": "^7.0.2"
+    }
+}
