@@ -1,26 +1,47 @@
 import { Hono } from "hono";
-import { container, BeanType } from "./container";
-import { ParamSource } from "../decorators/param";
+import { container, BeanType, PropertyMeta } from "./container";
+import {
+    ASPECT_KEY,
+    CATCH_KEY,
+    CONTROLLER_KEY,
+    PARAM_VALIDATOR_KEY,
+    ROUTER_KEY,
+    TAGGED_PARAM,
+    VALIDATE_SCHEMA_KEY,
+    TAspectExec
+} from "./define";
+import { AopType, AspectDefinition } from "../decorators/aop";
+import { RouterOption } from "../decorators/route";
+import { ParamDefinition } from "../decorators/param";
+import { SchemaDefinition, ValidatorDefinition, validateWithSchema } from "../decorators/validation";
 import { Exception } from "./exception";
-import { validateWithSchema } from "../decorators/validation";
+
+interface CatchHandler {
+    errorKey: string;
+    methodName: string;
+    instance: any;
+}
 
 export class Router {
     private hono: Hono;
-    private globalHandlers: Array<{ errorKey: string; methodName: string; instance: any }> = [];
+    private globalHandlers: CatchHandler[] = [];
 
     constructor(hono: Hono) {
         this.hono = hono;
     }
 
+    /** 遍历容器中的 Controller Bean，读取全局注册的元数据并挂载到 Hono */
     registerRoutes(): void {
         const controllers = container.getByType(BeanType.CONTROLLER);
 
-        // Collect @Catched handlers globally from all controllers.
-        // Exact matches run before wildcard matches.
+        // 全局收集 @Catched 异常处理器（精确匹配优先于通配符）
         for (const ctrl of controllers) {
-            const handlers = Reflect.getMetadata("exception:handlers", ctrl.constructor) || [];
-            for (const h of handlers) {
-                this.globalHandlers.push({ errorKey: h.errorKey, methodName: h.methodName, instance: ctrl });
+            for (const h of container.listPropertyData<{ errorKey: string }>(CATCH_KEY, ctrl.constructor)) {
+                this.globalHandlers.push({
+                    errorKey: h.data.errorKey,
+                    methodName: h.propertyKey,
+                    instance: ctrl
+                });
             }
         }
         this.globalHandlers.sort((a, b) => {
@@ -30,29 +51,26 @@ export class Router {
         });
 
         for (const controller of controllers) {
-            const controllerPath = Reflect.getMetadata("controller:path", controller.constructor) || "/";
-            const routes = Reflect.getMetadata("controller:routes", controller.constructor) || [];
-            const aops = Reflect.getMetadata("aop:definitions", controller.constructor) || [];
+            const clazz = controller.constructor;
+            const [pathMeta] = container.getPropertyData<{ path: string }>(CONTROLLER_KEY, clazz);
+            const basePath = pathMeta?.path || "/";
+            const aops = container.listPropertyData<AspectDefinition>(ASPECT_KEY, clazz);
 
-            for (const route of routes) {
-                const fullPath = this.normalizePath(controllerPath, route.path);
-                const method = route.method.toLowerCase();
+            for (const routeMeta of container.listPropertyData<RouterOption>(ROUTER_KEY, clazz)) {
+                const route = routeMeta.data;
+                const methodName = String(route.method);
+                const fullPath = this.normalizePath(basePath, route.path);
+                const httpMethod = route.requestMethod.toLowerCase();
 
-                this.hono[method](fullPath, async (c: any) => {
+                (this.hono as any)[httpMethod](fullPath, async (c: any) => {
                     try {
-                        // Build args from params
-                        const args = await this.buildArgs(c, controller, route.methodName);
-
-                        // Execute AOP
-                        const result = await this.executeWithAop(controller, route.methodName, args, aops, c);
-
+                        const args = await this.buildArgs(c, clazz, methodName);
+                        const result = await this.executeWithAop(controller, methodName, args, aops, c);
                         return c.json(result);
                     } catch (err: any) {
-                        // Handle exceptions via global @Catched handlers
                         const handled = await this.handleException(err, c);
                         if (handled) return handled;
 
-                        // Default error response
                         const status = err.status || 500;
                         return c.json(
                             {
@@ -73,52 +91,35 @@ export class Router {
         return `${b}${p}` || "/";
     }
 
-    private async buildArgs(c: any, controller: any, methodName: string): Promise<any[]> {
-        const params = Reflect.getMetadata("method:params", controller, methodName) || [];
+    /** 通过 TAGGED_PARAM 注册的提取函数构建方法入参，并执行校验 */
+    private async buildArgs(c: any, clazz: any, methodName: string): Promise<any[]> {
+        const params = (container.getPropertyData<ParamDefinition>(TAGGED_PARAM, clazz, methodName) || []).sort(
+            (a, b) => a.index - b.index
+        );
+        const schema = container.getPropertyData<SchemaDefinition>(VALIDATE_SCHEMA_KEY, clazz, methodName)[0]?.schema;
+        const validators = container.getPropertyData<ValidatorDefinition>(PARAM_VALIDATOR_KEY, clazz, methodName) || [];
+
+        // Schema 校验对象：DTO 参数或 body 来源参数
+        const schemaParam = params.find((p) => p.isDto || p.source === "body");
         const args: any[] = [];
 
-        // Apply @Validated schema if exists
-        const schemas = Reflect.getMetadata("method:schemas", controller.constructor) || [];
-        const schemaDef = schemas.find((s: any) => s.methodName === methodName);
+        for (const p of params) {
+            let value = await p.fn(c, p.index);
 
-        for (const param of params) {
-            let value: any;
-
-            switch (param.source) {
-                case ParamSource.QUERY:
-                    value = param.name ? c.req.query(param.name) : c.req.query();
-                    break;
-                case ParamSource.PATH:
-                    value = param.name ? c.req.param(param.name) : c.req.param();
-                    break;
-                case ParamSource.BODY:
-                    value = await c.req.json().catch(() => ({}));
-                    if (schemaDef && !param.name) {
-                        // validate the whole body against schema
-                        value = validateWithSchema(schemaDef.schema, value);
-                    } else if (param.name) {
-                        value = value?.[param.name];
-                    }
-                    break;
-                case ParamSource.HEADER:
-                    value = param.name ? c.req.header(param.name) : c.req.header();
-                    break;
-                case ParamSource.CTX:
-                    value = c;
-                    break;
-                default:
-                    value = undefined;
+            if (schema && p === schemaParam) {
+                value = validateWithSchema(schema, value);
+            } else if (p.isDto && typeof p.dtoClass === "function" && p.dtoClass !== Object) {
+                // DTO 类：plain 转 class 实例
+                value = Object.assign(new p.dtoClass(), value);
             }
 
-            // Run param validators
-            const validators = Reflect.getMetadata("method:validators", controller, methodName) || [];
             for (const v of validators) {
-                if (v.index === param.index && !v.validator(value)) {
+                if (v.index === p.index && !v.validator(value)) {
                     throw new Exception("VALIDATION_ERROR", v.message, 400);
                 }
             }
 
-            args[param.index] = value;
+            args[p.index] = value;
         }
 
         return args;
@@ -128,52 +129,83 @@ export class Router {
         controller: any,
         methodName: string,
         args: any[],
-        aops: any[],
+        aops: PropertyMeta<AspectDefinition>[],
         ctx: any
     ): Promise<any> {
         const originalMethod = controller[methodName].bind(controller);
+        const next = () => originalMethod(...args);
 
-        // Before AOP
-        for (const aop of aops.filter((a: any) => a.type === "before" && a.methodName === methodName)) {
-            const aspect = container.get(aop.aspectId);
-            if (aspect?.before) {
-                await aspect.before(ctx, ...args);
-            }
+        // Before
+        for (const a of aops.filter((a) => a.propertyKey === methodName && a.data.type === AopType.BEFORE)) {
+            await this.invokeAspect(a.data, AopType.BEFORE, ctx, args);
         }
 
-        // Around AOP
-        const aroundAop = aops.find((a: any) => a.type === "around" && a.methodName === methodName);
+        // Around / 原方法
+        const around = aops.find((a) => a.propertyKey === methodName && a.data.type === AopType.AROUND);
         let result: any;
-        if (aroundAop) {
-            const aspect = container.get(aroundAop.aspectId);
-            if (aspect?.around) {
-                result = await aspect.around(ctx, originalMethod, ...args);
-            } else {
-                result = await originalMethod(...args);
-            }
+        if (around) {
+            result = await this.invokeAround(around.data, ctx, originalMethod, args);
         } else {
-            result = await originalMethod(...args);
+            result = await next();
         }
 
-        // After AOP
-        for (const aop of aops.filter((a: any) => a.type === "after" && a.methodName === methodName)) {
-            const aspect = container.get(aop.aspectId);
-            if (aspect?.after) {
-                await aspect.after(ctx, result, ...args);
-            }
+        // After
+        for (const a of aops.filter((a) => a.propertyKey === methodName && a.data.type === AopType.AFTER)) {
+            await this.invokeAspect(a.data, AopType.AFTER, ctx, args, result);
         }
 
         return result;
     }
 
+    private async invokeAspect(
+        aop: AspectDefinition,
+        mode: AopType,
+        ctx: any,
+        args: any[],
+        result?: any
+    ): Promise<void> {
+        if (typeof aop.exec === "string") {
+            // 组件切面：调用组件的 before/after 方法
+            const bean: any = container.get(aop.exec);
+            if (!bean) {
+                console.warn(`[Kirinriki] Aspect component "${aop.exec}" not found in container, did you import it?`);
+                return;
+            }
+            if (mode === AopType.BEFORE) {
+                await bean?.before?.(ctx, ...args);
+            } else {
+                await bean?.after?.(ctx, result, ...args);
+            }
+        } else {
+            // 内联函数切面
+            const exec = aop.exec as TAspectExec;
+            if (mode === AopType.BEFORE) {
+                await exec(ctx, ...args);
+            } else {
+                await exec(ctx, result, ...args);
+            }
+        }
+    }
+
+    private async invokeAround(aop: AspectDefinition, ctx: any, originalMethod: Function, args: any[]): Promise<any> {
+        const next = () => originalMethod(...args);
+        if (typeof aop.exec === "string") {
+            const bean: any = container.get(aop.exec);
+            if (bean?.around) {
+                return bean.around(ctx, originalMethod, ...args);
+            }
+            return next();
+        }
+        // 内联函数切面：exec(ctx, next)
+        return aop.exec(ctx, next);
+    }
+
     /**
-     * Run matching @Catched handlers by errorKey (supports "PREFIX_*" wildcard).
-     *
-     * Handler return value semantics (per koatty convention):
-     * - Response: use it directly as the HTTP response, stop the chain
-     * - true:     stop the chain, fall through to default error JSON
-     * - other non-boolean value: send it as JSON body, stop the chain
-     * - false / undefined: continue to the next matching handler
+     * 按 errorKey 匹配全局 @Catched 处理器（支持 "PREFIX_*" 通配）。
+     * 处理器返回值语义：
+     * - 对象：作为响应体返回，中断链
+     * - true：中断链，返回默认错误 JSON
+     * - false / undefined：继续匹配下一个处理器
      */
     private async handleException(err: any, c: any): Promise<any> {
         const status = err.status || 500;
@@ -190,7 +222,6 @@ export class Router {
             if (result instanceof Response) return result;
             if (result === true) return c.json(payload, status);
             if (result !== undefined && result !== false) return c.json(result, err.status || 200);
-            // false / undefined → continue to next handler
         }
         return null;
     }

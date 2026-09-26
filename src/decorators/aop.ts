@@ -1,53 +1,39 @@
-import "reflect-metadata";
+import { container } from "../core/container";
+import { ASPECT_KEY, TAspectExec, TAroundExec, TAspectLike } from "../core/define";
 
 export enum AopType {
-    BEFORE = "before",
-    AFTER = "after",
-    AROUND = "around"
+  BEFORE = "before",
+  AFTER = "after",
+  AROUND = "around",
 }
 
-export interface AopDefinition {
-    type: AopType;
-    aspectId: string;
-    methodName: string;
-    controller: any;
+export interface AspectDefinition {
+  type: AopType;
+  /** 内联执行函数，或容器中的组件 id（如 "LogAspect"） */
+  exec: TAspectLike;
 }
 
-export function Before(aspectId: string): MethodDecorator {
-    return (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
-        const aops: AopDefinition[] = Reflect.getMetadata("aop:definitions", target.constructor) || [];
-        aops.push({
-            type: AopType.BEFORE,
-            aspectId,
-            methodName: propertyKey as string,
-            controller: target.constructor
-        });
-        Reflect.defineMetadata("aop:definitions", aops, target.constructor);
-    };
-}
+/**
+ * 切面注入：将切面执行函数（或组件 id）注册到容器 ASPECT_KEY（参考 koatty InjectAspect）
+ * 自定义切面注解只需调用 InjectAspect(type, exec) 即可全局注册使用
+ *
+ * 执行约定：
+ * - Before: exec(ctx, ...methodArgs)
+ * - After:  exec(ctx, result, ...methodArgs)
+ * - Around: exec(ctx, next)  // next() 执行原方法
+ * - exec 为字符串时，从容器解析组件并调用其 before/after/around 方法
+ *
+ * @param {AopType} type 切面类型
+ * @param {TAspectLike} exec 执行函数或组件 id
+ * @returns {*}  {MethodDecorator}
+ */
+export const InjectAspect = (type: AopType, exec: TAspectLike): MethodDecorator => {
+  return (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
+    container.attachPropertyData(ASPECT_KEY, { type, exec } as AspectDefinition, target, propertyKey);
+    return descriptor;
+  };
+};
 
-export function After(aspectId: string): MethodDecorator {
-    return (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
-        const aops: AopDefinition[] = Reflect.getMetadata("aop:definitions", target.constructor) || [];
-        aops.push({
-            type: AopType.AFTER,
-            aspectId,
-            methodName: propertyKey as string,
-            controller: target.constructor
-        });
-        Reflect.defineMetadata("aop:definitions", aops, target.constructor);
-    };
-}
-
-export function Around(aspectId: string): MethodDecorator {
-    return (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
-        const aops: AopDefinition[] = Reflect.getMetadata("aop:definitions", target.constructor) || [];
-        aops.push({
-            type: AopType.AROUND,
-            aspectId,
-            methodName: propertyKey as string,
-            controller: target.constructor
-        });
-        Reflect.defineMetadata("aop:definitions", aops, target.constructor);
-    };
-}
+export const Before = (exec: TAspectExec | string) => InjectAspect(AopType.BEFORE, exec);
+export const After = (exec: TAspectExec | string) => InjectAspect(AopType.AFTER, exec);
+export const Around = (exec: TAroundExec | string) => InjectAspect(AopType.AROUND, exec);

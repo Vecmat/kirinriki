@@ -1,41 +1,107 @@
 import "reflect-metadata";
+import { container } from "../core/container";
+import { TAGGED_PARAM, TParams } from "../core/define";
 
-export enum ParamSource {
-    QUERY = "query",
-    PATH = "path",
-    BODY = "body",
-    HEADER = "header",
-    CTX = "ctx"
+/** 基础类型不会作为 DTO 处理 */
+const PRIMITIVE_TYPES = [
+    "String",
+    "Number",
+    "Boolean",
+    "Object",
+    "Array",
+    "Function",
+    "Symbol",
+    "BigInt",
+    "Date",
+    "Promise",
+    "RegExp",
+    "Error"
+];
+
+export interface ParamOption {
+    /** 参数来源标记（query/path/body/header/ctx），供 Schema 校验定位使用 */
+    source?: string;
 }
 
 export interface ParamDefinition {
+    /** 所属方法名 */
+    name: string;
+    /** 参数提取函数（闭包携带装饰器入参） */
+    fn: TParams;
+    /** 参数索引 */
     index: number;
-    source: ParamSource;
-    name?: string;
-    type?: any;
-    validate?: any;
+    /** 参数类型标识 */
+    type: string;
+    /** 是否为 DTO 类参数 */
+    isDto: boolean;
+    /** DTO 类引用（isDto 时存在） */
+    dtoClass?: any;
+    source?: string;
 }
 
-function createParamDecorator(source: ParamSource) {
-    return function (name?: string) {
-        return function (target: any, propertyKey: string | symbol, parameterIndex: number) {
-            const params: ParamDefinition[] = Reflect.getMetadata("method:params", target, propertyKey) || [];
-            const paramType = Reflect.getMetadata("design:paramtypes", target, propertyKey)?.[parameterIndex];
-            params.push({
+/**
+ * 参数注入：将参数提取函数注册到容器 TAGGED_PARAM（参考 koatty InjectParams）
+ * 自定义参数注解只需调用 InjectParams(name, fn) 即可全局注册使用
+ *
+ * @param {string} name 装饰器名称（用于错误提示）
+ * @param {TParams} fn 参数提取函数，入参为 Hono Context
+ * @param {ParamOption} [opts={}]
+ * @returns {*}  {ParameterDecorator}
+ */
+export const InjectParams = (_name: string, fn: TParams, opts: ParamOption = {}): ParameterDecorator => {
+    return (target: any, propertyKey: string | symbol | undefined, parameterIndex: number) => {
+        const pk = propertyKey === undefined ? "" : String(propertyKey);
+        const paramTypes = Reflect.getMetadata("design:paramtypes", target, propertyKey as any) || [];
+        const ptype = paramTypes[parameterIndex];
+
+        let typeName = ptype?.name ?? "object";
+        let dtoClass: any;
+        let isDto = false;
+        // 非 基础 类型视为 DTO 类（参考 koatty：DTO 自动注册处理）
+        if (ptype && !PRIMITIVE_TYPES.includes(typeName)) {
+            typeName = container.getIdentifier(ptype);
+            dtoClass = ptype;
+            isDto = true;
+        }
+
+        container.attachPropertyData(
+            TAGGED_PARAM,
+            {
+                name: pk,
+                fn,
                 index: parameterIndex,
-                source,
-                name,
-                type: paramType
-            });
-            // sort by index to ensure correct order
-            params.sort((a, b) => a.index - b.index);
-            Reflect.defineMetadata("method:params", params, target, propertyKey);
-        };
+                type: typeName,
+                isDto,
+                dtoClass,
+                source: opts.source
+            } as ParamDefinition,
+            target,
+            pk
+        );
     };
-}
+};
 
-export const ParamsQuery = (name?: string) => createParamDecorator(ParamSource.QUERY)(name);
-export const ParamsPath = (name?: string) => createParamDecorator(ParamSource.PATH)(name);
-export const ParamsBody = (name?: string) => createParamDecorator(ParamSource.BODY)(name);
-export const ParamsHeader = (name?: string) => createParamDecorator(ParamSource.HEADER)(name);
-export const Ctx = () => createParamDecorator(ParamSource.CTX)();
+export const ParamsQuery = (name?: string) =>
+    InjectParams("ParamsQuery", async (ctx: any) => (name ? ctx.req.query(name) : ctx.req.query()), {
+        source: "query"
+    });
+
+export const ParamsPath = (name?: string) =>
+    InjectParams("ParamsPath", async (ctx: any) => (name ? ctx.req.param(name) : ctx.req.param()), { source: "path" });
+
+export const ParamsBody = (name?: string) =>
+    InjectParams(
+        "ParamsBody",
+        async (ctx: any) => {
+            const body = await ctx.req.json().catch(() => ({}));
+            return name ? body?.[name] : body;
+        },
+        { source: "body" }
+    );
+
+export const ParamsHeader = (name?: string) =>
+    InjectParams("ParamsHeader", async (ctx: any) => (name ? ctx.req.header(name) : ctx.req.header()), {
+        source: "header"
+    });
+
+export const Ctx = () => InjectParams("Ctx", async (ctx: any) => ctx, { source: "ctx" });

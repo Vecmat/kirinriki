@@ -1,30 +1,30 @@
-import { Controller } from "../../src/decorators/component";
+import { Controller, Autowired } from "../../src/decorators/component";
 import { Get, Post, Put, Delete } from "../../src/decorators/route";
-import { ParamsQuery, ParamsPath, ParamsBody, ParamsHeader, Ctx } from "../../src/decorators/param";
-import { Autowired } from "../../src/decorators/component";
-import { Before, After } from "../../src/decorators/aop";
+import { ParamsPath, ParamsBody, ParamsHeader, InjectParams } from "../../src/decorators/param";
+import { Before } from "../../src/decorators/aop";
 import { Exception, Catched } from "../../src/decorators/exception";
 import { Valid, Validated } from "../../src/decorators/validation";
 import { UserService, UserSchema, User } from "../service/user.service";
 
+// 自定义参数注解：通过 InjectParams 全局注册，任意控制器可直接使用
+const UserAgent = () => InjectParams("UserAgent", async (ctx: any) => ctx.req.header("user-agent") || "unknown");
+
 @Controller("/user")
 export class UserController {
-    @Autowired()
+    // Deno 等运行时不支持 emitDecoratorMetadata（design:type），
+    // @Autowired 需显式传入依赖类，Node/Bun 下同样适用
+    @Autowired(UserService)
     userService!: UserService;
 
     @Get("/")
+    @Before("LogAspect") // 组件切面：引用容器中的 LogAspect
     async list() {
-        return this.userService.list();
+        return await this.userService.list();
     }
 
-    @Before("test")
-    async before() {
-        console.log("Before");
-    }
-
-    @After("test")
-    async after() {
-        console.log("After");
+    @Get("/agent")
+    async agent(@UserAgent() ua: string) {
+        return { userAgent: ua };
     }
 
     @Get("/:id")
@@ -37,6 +37,7 @@ export class UserController {
 
     @Post("/")
     @Validated(UserSchema)
+    @Before(async (ctx: any) => console.log("[AOP] before create:", ctx.req.method, ctx.req.path)) // 内联函数切面
     async create(@ParamsBody() user: User) {
         return this.userService.create(user);
     }

@@ -7,20 +7,22 @@
     "scripts": {
         "build": "tsc",
         "build:example": "tsc -p tsconfig.example.json",
-        "example": "npm run build:example && node dist-example/example/app.js",
+        "example": "npm run build && npm run build:example && node dist-example/example/main.js",
         "dev": "npm run example",
+        "example:deno": "deno task start",
+        "example:bun": "bun run example/main.ts",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "keywords": [],
     "author": "",
     "license": "ISC",
     "dependencies": {
-        "@hono/node-server": "^2.1.1",
         "hono": "^4.13.9",
         "reflect-metadata": "^0.2.2",
         "zod": "^4.6.5"
     },
     "devDependencies": {
+        "@hono/node-server": "^2.1.1",
         "@types/node": "^26.6.2",
         "@types/reflect-metadata": "^0.0.5",
         "ts-node": "^10.9.2",

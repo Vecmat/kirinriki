@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "experimentalDecorators": true
+    },
+    "unstable": [
+        "sloppy-imports"
+    ],
+    "nodeModulesDir": "auto",
+    "tasks": {
+        "dev": "deno run --allow-net --allow-env ./example/main.ts",
+        "start": "deno run --allow-net --allow-env ./example/main.ts"
+    },
+    "lint": {
+        "rules": {
+            "include": [
+                "no-sloppy-imports"
+            ],
+            "exclude": [
+                "no-sloppy-imports"
+            ]
+        },
+        "decorators": {
+            "enabled": true
+        }
+    }
+}

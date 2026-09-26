@@ -1,37 +1,57 @@
-import "reflect-metadata";
+import { container } from "../core/container";
+import { ROUTER_KEY } from "../core/define";
 
 export enum HttpMethod {
-    GET = "GET",
-    POST = "POST",
-    PUT = "PUT",
-    DELETE = "DELETE",
-    PATCH = "PATCH",
-    OPTIONS = "OPTIONS",
-    HEAD = "HEAD",
-    ALL = "ALL"
+  GET = "GET",
+  POST = "POST",
+  PUT = "PUT",
+  DELETE = "DELETE",
+  PATCH = "PATCH",
+  OPTIONS = "OPTIONS",
+  HEAD = "HEAD",
+  ALL = "ALL",
 }
 
-export interface RouteDefinition {
-    method: HttpMethod;
-    path: string;
-    methodName: string;
-    controller: any;
+export interface RouterOption {
+  path: string;
+  requestMethod: HttpMethod;
+  routerName: string;
+  method: string | symbol;
 }
 
-function createRouteDecorator(method: HttpMethod) {
-    return function (path?: string): MethodDecorator {
-        return (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
-            const routes: RouteDefinition[] = Reflect.getMetadata("controller:routes", target.constructor) || [];
-            routes.push({
-                method,
-                path: path || "",
-                methodName: propertyKey as string,
-                controller: target.constructor
-            });
-            Reflect.defineMetadata("controller:routes", routes, target.constructor);
-        };
-    };
-}
+/**
+ * 路由注入：将方法注册为指定 HTTP 方法与路径的路由（参考 koatty InjectRouter）
+ * 元数据全局注册到容器 ROUTER_KEY，@Get/@Post 等均为其语法糖
+ *
+ * @param {string} [path="/"]
+ * @param {HttpMethod} [reqMethod=HttpMethod.GET]
+ * @param {{ routerName?: string }} [routerOptions={}]
+ * @returns {*}  {MethodDecorator}
+ */
+export const InjectRouter = (
+  path = "/",
+  reqMethod: HttpMethod = HttpMethod.GET,
+  routerOptions: { routerName?: string } = {}
+): MethodDecorator => {
+  const routerName = routerOptions.routerName ?? "";
+  return (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
+    container.attachPropertyData(
+      ROUTER_KEY,
+      {
+        path,
+        requestMethod: reqMethod,
+        routerName,
+        method: propertyKey,
+      } as RouterOption,
+      target,
+      propertyKey
+    );
+    return descriptor;
+  };
+};
+
+const createRouteDecorator = (method: HttpMethod) => (path?: string): MethodDecorator =>
+  InjectRouter(path ?? "/", method);
 
 export const Get = createRouteDecorator(HttpMethod.GET);
 export const Post = createRouteDecorator(HttpMethod.POST);
