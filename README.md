@@ -1,5 +1,5 @@
 <p align="center">
-  <pre align="center" style="font-size: 6px;">
+<pre align="center" style="font-size: 6px;">
     _    _      _            _ _    _
     | |  (_)    (_)          (_) |  (_)
     | | ___ _ __ _ _ __  _ __ _| | ___
@@ -9,25 +9,31 @@
 
  == https://github.com/vecmat/kirinriki ==
  🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘 🌑
- </pre>
-  <p align="center">
-    <a href="https://www.npmjs.com/package/kirinriki">
-      <img src="https://badge.fury.io/js/kirinriki.svg">
+</pre>
+
+<p align="center">
+    <a href="https://jsr.io/@vecmat/kirinriki">
+        <img src="https://jsr.io/badges/@vecmat" alt="" />
     </a>
-    <a href="https://bundlephobia.com/result?p=kirinriki@latest">
-      <img src="https://badgen.net/bundlephobia/min/kirinriki">
+    <a href="https://jsr.io/@vecmat/kirinriki">
+        <img src="https://jsr.io/badges/@vecmat/kirinriki" alt="" />
     </a>
-    <a href="https://discord.gg/XpVjCQCe">
-      <img src="https://img.shields.io/badge/Chat_in-Discord-blue">
+    <a href="https://jsr.io/@vecmat/kirinriki">
+        <img src="https://jsr.io/badges/@vecmat/kirinriki/score" alt="" />
     </a>
-  </p>
+    <a href="https://jsr.io/@vecmat/kirinriki">
+        <img src="https://jsr.io/badges/@vecmat/kirinriki/total-downloads" alt="" />
+    </a>
+    <a href="https://jsr.io/@<scope>/<package>">
+        <img src="https://jsr.io/badges/@vecmat/kirinriki/weekly-downloads" alt="" />
+    </a>
+</p>
 </p>
 
 # Kirinriki
 
-> Attention!!! REST API officially available, WS/GRpc waiting for adaptation!
 
-A framework written in TypeScript that provides REST/GRPC/Websocket API to build amazing server-side applications!
+A framework written in TypeScript that provides REST API to build amazing server-side applications!
 
 ## Naming
 
@@ -40,8 +46,7 @@ Thai: `คิรินริกิ` `Kirinriki`
 Korean:  `키링키` `Kirinriki`
 Japanese: `キリンリキ` `Kirinriki`
 
-[![JSR Score](https://jsr.io/badges/@vecmat/kirinriki)](https://jsr.io/@vecmat/kirinriki/score)
-[![JSR Version](https://jsr.io/badges/@vecmat/kirinriki/version)](https://jsr.io/@vecmat/kirinriki)
+
 
 基于 [Hono](https://hono.dev/) 的企业级 TypeScript Web 框架，提供完整的依赖注入、声明式路由、AOP 和参数验证能力。
 
@@ -273,4 +278,4 @@ KIRINRIKI_PRINT_ROUTES=1 deno task start
 
 ## 许可证
 
-ISC
+MIT License
