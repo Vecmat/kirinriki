@@ -41,7 +41,8 @@ function main() {
         console.log("[tag-release] 版本号无变更，跳过提交");
     }
 
-    // 先推提交、再推标签；推送失败时标签不会触发发布
+    // 先打标签、推提交、再推标签；推送失败时标签不会触发发布
+    run(`git tag ${tag}`);
     run(`git push`);
     run(`git push origin ${tag}`);
 
