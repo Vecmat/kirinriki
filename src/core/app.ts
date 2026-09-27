@@ -13,32 +13,42 @@ import { WELCOME, LOGO } from "../base/Constants";
  * 装饰器在模块求值时自动把类注册进 IOC 容器（Node/Deno/Bun/Workers 通用）。
  */
 export class Kirinriki {
-  /** Hono 实例，各运行时兼容层以此作为 fetch 入口 */
-  public readonly hono: Hono;
-  private router: Router;
+    /** Hono 实例，各运行时兼容层以此作为 fetch 入口 */
+    public readonly hono: Hono;
+    private router: Router;
 
-  constructor(silent = false) {
-    if (!silent) {
-      console.log(LOGO);
-      console.log(WELCOME);
+    /**
+     * @param silent 为 true 时不打印启动 LOGO 与欢迎语
+     */
+    constructor(silent = false) {
+        if (!silent) {
+            console.log(LOGO);
+            console.log(WELCOME);
+        }
+
+        this.hono = new Hono();
+        this.router = new Router(this.hono);
     }
 
-    this.hono = new Hono();
-    this.router = new Router(this.hono);
-  }
+    /** 挂载容器中已注册的路由。需在导出/监听前 await 完成 */
+    async init(): Promise<this> {
+        this.router.registerRoutes();
+        return this;
+    }
 
-  /** 挂载容器中已注册的路由。需在导出/监听前 await 完成 */
-  async init(): Promise<this> {
-    this.router.registerRoutes();
-    return this;
-  }
-
-  /** Web 标准 fetch 处理器，等价于 hono.fetch，可直接交给任意兼容运行时 */
-  get fetch(): (request: Request, ...args: any[]) => Response | Promise<Response> {
-    return this.hono.fetch;
-  }
+    /** Web 标准 fetch 处理器，等价于 hono.fetch，可直接交给任意兼容运行时 */
+    get fetch(): (
+        request: Request,
+        ...args: any[]
+    ) => Response | Promise<Response> {
+        return this.hono.fetch;
+    }
 }
 
+/**
+ * 创建 Kirinriki 应用实例的工厂函数。
+ * @param silent 为 true 时静默启动（不打印 LOGO）
+ */
 export function createApp(silent = false): Kirinriki {
-  return new Kirinriki(silent);
+    return new Kirinriki(silent);
 }

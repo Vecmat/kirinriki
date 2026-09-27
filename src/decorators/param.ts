@@ -1,28 +1,30 @@
-import 'reflect-metadata';
-import { container } from '../core/container';
-import { TAGGED_PARAM, type TParams } from '../core/define';
+import "reflect-metadata";
+import { container } from "../core/container";
+import { TAGGED_PARAM, type TParams } from "../core/define";
 
 /** 基础类型不会作为 DTO 处理 */
 const PRIMITIVE_TYPES = [
-    'String',
-    'Number',
-    'Boolean',
-    'Object',
-    'Array',
-    'Function',
-    'Symbol',
-    'BigInt',
-    'Date',
-    'Promise',
-    'RegExp',
-    'Error',
+    "String",
+    "Number",
+    "Boolean",
+    "Object",
+    "Array",
+    "Function",
+    "Symbol",
+    "BigInt",
+    "Date",
+    "Promise",
+    "RegExp",
+    "Error",
 ];
 
+/** 参数注入选项 */
 export interface ParamOption {
     /** 参数来源标记（query/path/body/header/ctx），供 Schema 校验定位使用 */
     source?: string;
 }
 
+/** 参数注入元数据定义 */
 export interface ParamDefinition {
     /** 所属方法名 */
     name: string;
@@ -36,6 +38,7 @@ export interface ParamDefinition {
     isDto: boolean;
     /** DTO 类引用（isDto 时存在） */
     dtoClass?: any;
+    /** 参数来源标记（query/path/body/header/ctx） */
     source?: string;
 }
 
@@ -58,16 +61,16 @@ export const InjectParams = (
         propertyKey: string | symbol | undefined,
         parameterIndex: number,
     ) => {
-        const pk = propertyKey === undefined ? '' : String(propertyKey);
+        const pk = propertyKey === undefined ? "" : String(propertyKey);
         const paramTypes =
             Reflect.getMetadata(
-                'design:paramtypes',
+                "design:paramtypes",
                 target,
                 propertyKey as any,
             ) || [];
         const ptype = paramTypes[parameterIndex];
 
-        let typeName = ptype?.name ?? 'object';
+        let typeName = ptype?.name ?? "object";
         let dtoClass: any;
         let isDto = false;
         // 非 基础 类型视为 DTO 类
@@ -94,40 +97,57 @@ export const InjectParams = (
     };
 };
 
+/** 注入 Hono Context（请求上下文）本身 */
 export const Ctx: () => ParameterDecorator = () =>
-    InjectParams('Ctx', async (ctx: any) => ctx, { source: 'ctx' });
+    InjectParams("Ctx", (ctx: any) => ctx, { source: "ctx" });
 
+/**
+ * 注入 URL query 参数。
+ * @param name 参数名；省略时注入整个 query 对象
+ */
 export const ParamsQuery: (name?: string) => ParameterDecorator = (name) =>
     InjectParams(
-        'ParamsQuery',
+        "ParamsQuery",
         async (ctx: any) => (name ? ctx.req.query(name) : ctx.req.query()),
         {
-            source: 'query',
+            source: "query",
         },
     );
 
+/**
+ * 注入路径参数（如 `/user/:id` 中的 `id`）。
+ * @param name 参数名；省略时注入全部路径参数
+ */
 export const ParamsPath: (name?: string) => ParameterDecorator = (name) =>
     InjectParams(
-        'ParamsPath',
+        "ParamsPath",
         async (ctx: any) => (name ? ctx.req.param(name) : ctx.req.param()),
-        { source: 'path' },
+        { source: "path" },
     );
 
+/**
+ * 注入请求体（JSON）。
+ * @param name 字段名；省略时注入整个 body 对象
+ */
 export const ParamsBody: (name?: string) => ParameterDecorator = (name) =>
     InjectParams(
-        'ParamsBody',
+        "ParamsBody",
         async (ctx: any) => {
             const body = await ctx.req.json().catch(() => ({}));
             return name ? body?.[name] : body;
         },
-        { source: 'body' },
+        { source: "body" },
     );
 
+/**
+ * 注入请求头。
+ * @param name 头名称；省略时注入全部请求头
+ */
 export const ParamsHeader: (name?: string) => ParameterDecorator = (name) =>
     InjectParams(
-        'ParamsHeader',
+        "ParamsHeader",
         async (ctx: any) => (name ? ctx.req.header(name) : ctx.req.header()),
         {
-            source: 'header',
+            source: "header",
         },
     );

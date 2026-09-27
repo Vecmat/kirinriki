@@ -1,14 +1,20 @@
-import { container } from '../core/container';
-import { ASPECT_KEY } from '../core/define';
-import type { TAspectExec, TAroundExec, TAspectLike } from '../core/define';
+import { container } from "../core/container";
+import { ASPECT_KEY } from "../core/define";
+import type { TAspectExec, TAroundExec, TAspectLike } from "../core/define";
 
+/** 切面类型：前置、后置、环绕 */
 export enum AopType {
-    BEFORE = 'before',
-    AFTER = 'after',
-    AROUND = 'around',
+    /** 方法执行前调用：exec(ctx, ...methodArgs) */
+    BEFORE = "before",
+    /** 方法执行后调用：exec(ctx, result, ...methodArgs) */
+    AFTER = "after",
+    /** 环绕调用：exec(ctx, next)，由 next() 决定是否/何时执行原方法 */
+    AROUND = "around",
 }
 
+/** 切面元数据定义 */
 export interface AspectDefinition {
+    /** 切面类型 */
     type: AopType;
     /** 内联执行函数，或容器中的组件 id（如 "LogAspect"） */
     exec: TAspectLike;
@@ -47,9 +53,21 @@ export const InjectAspect = (
     };
 };
 
+/**
+ * 前置切面装饰器：方法执行前调用。
+ * @param exec 内联函数 `(ctx, ...args) => void`，或容器组件 id（调用其 `before` 方法）
+ */
 export const Before: (exec: TAspectExec | string) => MethodDecorator = (exec) =>
     InjectAspect(AopType.BEFORE, exec);
+/**
+ * 后置切面装饰器：方法正常返回后调用。
+ * @param exec 内联函数 `(ctx, result, ...args) => void`，或容器组件 id（调用其 `after` 方法）
+ */
 export const After: (exec: TAspectExec | string) => MethodDecorator = (exec) =>
     InjectAspect(AopType.AFTER, exec);
+/**
+ * 环绕切面装饰器：通过 `next()` 控制原方法执行。
+ * @param exec 内联函数 `(ctx, next) => any`，或容器组件 id（调用其 `around` 方法）
+ */
 export const Around: (exec: TAroundExec | string) => MethodDecorator = (exec) =>
     InjectAspect(AopType.AROUND, exec);

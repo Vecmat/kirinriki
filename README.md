@@ -1,6 +1,9 @@
 # Kirinriki
 
-基于 Hono 的企业级 TypeScript Web 框架，提供完整的依赖注入、声明式路由、AOP 和参数验证能力。
+[![JSR Score](https://jsr.io/badges/@vecmat/kirinriki)](https://jsr.io/@vecmat/kirinriki/score)
+[![JSR Version](https://jsr.io/badges/@vecmat/kirinriki/version)](https://jsr.io/@vecmat/kirinriki)
+
+基于 [Hono](https://hono.dev/) 的企业级 TypeScript Web 框架，提供完整的依赖注入、声明式路由、AOP 和参数验证能力。
 
 ## 特性
 
@@ -9,27 +12,27 @@
 - **参数提取**：`@ParamsQuery`、`@ParamsPath`、`@ParamsBody`、`@ParamsHeader`
 - **自动验证**：`@Valid`、`@Validated` 配合 zod
 - **AOP 切面**：`@Before`、`@After`、`@Around` 拦截器
-- **异常处理**：`@Exception`、`@Catched` 全局错误捕获
-- **跨运行时**：支持 Node.js、Deno、Bun、Cloudflare Workers
+- **异常处理**：`@Exception`、`@Catched` 全局错误捕获（支持 `API_*` 通配）
+- **跨运行时**：Node.js、Deno、Bun、Cloudflare Workers（框架仅依赖 hono / zod / reflect-metadata）
 
 ## 安装
 
 ```bash
 # Deno
-deno add jsr:@kirinriki/core
+deno add jsr:@vecmat/kirinriki
 
-# Node.js (npm)
-npm install @kirinriki/core
+# Node.js (npm / pnpm / yarn)
+npx jsr add @vecmat/kirinriki
 
 # Bun
-bun add @kirinriki/core
+bunx jsr add @vecmat/kirinriki
 ```
 
 ## 快速开始
 
 ```typescript
 // main.ts
-import { Kirinriki } from "@kirinriki/core";
+import { Kirinriki } from "@vecmat/kirinriki";
 import "reflect-metadata";
 
 const app = new Kirinriki();
@@ -52,7 +55,7 @@ serve({ fetch: app.fetch, port: 3000 });
 
 ```typescript
 // user.controller.ts
-import { Controller, Get, Post, Autowired, ParamsPath, Validated } from "@kirinriki/core";
+import { Controller, Get, Post, Autowired, ParamsPath, Validated } from "@vecmat/kirinriki";
 import { z } from "zod";
 import { UserService } from "./user.service";
 
@@ -98,7 +101,8 @@ export class UserService {
 
 @Controller("/user")
 export class UserController {
-    @Autowired(UserService)  // 自动注入
+    // 建议显式传类：Deno 等运行时不发射 design:type 元数据
+    @Autowired(UserService)
     userService!: UserService;
 }
 ```
@@ -108,24 +112,23 @@ export class UserController {
 ```typescript
 @Component()
 export class LogAspect {
-    @Before()
-    async log(ctx: any) {
+    async before(ctx: any) {
         console.log(`[Before] ${ctx.req.method} ${ctx.req.path}`);
     }
 }
 
 @Controller("/api")
 export class ApiController {
-    @Before("LogAspect")  // 引用组件
+    @Before("LogAspect") // 引用容器组件；也可直接传内联函数
     @Get("/data")
-    async getData() { ... }
+    async getData() { /* ... */ }
 }
 ```
 
 ### 全局异常处理
 
 ```typescript
-import { Exception, Catched } from "@kirinriki/core";
+import { Exception, Catched } from "@vecmat/kirinriki";
 
 @Controller("/api")
 export class ApiController {
@@ -134,9 +137,9 @@ export class ApiController {
         throw new Exception("API_ERROR", "Something went wrong");
     }
 
-    @Catched("API_*")  // 捕获所有 API_ 前缀的错误
+    @Catched("API_*") // 捕获所有 API_ 前缀的错误
     async handleApiError(err: Exception, ctx: any) {
-        return ctx.json({ error: err.message, code: err.errorKey }, 400);
+        return ctx.json({ error: err.errorMessage, code: err.errorKey }, 400);
     }
 }
 ```
@@ -144,11 +147,10 @@ export class ApiController {
 ### 自定义参数装饰器
 
 ```typescript
-import { InjectParams } from "@kirinriki/core";
+import { InjectParams } from "@vecmat/kirinriki";
 
-const UserAgent = () => InjectParams("UserAgent", async (ctx) =>
-    ctx.req.header("user-agent") || "unknown"
-);
+const UserAgent = () =>
+    InjectParams("UserAgent", (ctx) => ctx.req.header("user-agent") || "unknown");
 
 @Controller("/")
 export class AppController {
@@ -159,9 +161,18 @@ export class AppController {
 }
 ```
 
-## 环境配置
+## 运行时兼容性
 
-### TypeScript
+框架本身只使用标准 Web API 与 hono/zod，可运行于：
+
+| 运行时 | 支持情况 | 说明 |
+| --- | --- | --- |
+| Node.js | ✅ | 需 TypeScript/Babel 转译装饰器，监听用 `@hono/node-server` |
+| Deno | ✅ | 需启用 `experimentalDecorators` |
+| Bun | ✅ | 原生运行（建议先转译） |
+| Cloudflare Workers | ✅ | 先编译再打包；入口手动 import 模块注册 |
+
+### TypeScript 配置
 
 ```json
 {
@@ -172,7 +183,7 @@ export class AppController {
 }
 ```
 
-### Deno
+### Deno 配置（deno.json）
 
 ```json
 {
@@ -186,4 +197,4 @@ export class AppController {
 
 ## 许可证
 
-MIT
+ISC

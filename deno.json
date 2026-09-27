@@ -1,19 +1,12 @@
 {
     "name": "@vecmat/kirinriki",
     "version": "1.0.0",
-    "compilerOptions": {
-        "experimentalDecorators": true
-    },
-    "unstable": [
-        "sloppy-imports"
-    ],
-    "nodeModulesDir": "auto",
+    "description": "基于 Hono 的企业级 TypeScript Web 框架：IOC 依赖注入、装饰器路由、参数提取与 zod 校验、AOP 切面、全局异常处理，支持 Node.js / Deno / Bun / Cloudflare Workers。",
     "exports": "./src/index.ts",
     "publish": {
         "include": [
             "src/**/*.ts",
             "deno.json",
-            "jsr.json",
             "LICENSE",
             "README.md"
         ],
@@ -24,9 +17,19 @@
             "node_modules/**",
             "**/*.test.ts",
             "**/*.spec.ts",
-            "inject.ts"
+            "inject.ts",
+            ".github/**",
+            ".vscode/**",
+            ".idea/**"
         ]
     },
+    "compilerOptions": {
+        "experimentalDecorators": true
+    },
+    "unstable": [
+        "sloppy-imports"
+    ],
+    "nodeModulesDir": "auto",
     "tasks": {
         "dev": "deno run --allow-net --allow-env ./example/main.ts",
         "start": "deno run --allow-net --allow-env ./example/main.ts",
@@ -35,17 +38,16 @@
     "lint": {
         "rules": {
             "include": [
-                "ban-types",
                 "require-await",
-                "no-sloppy-imports",
-                "no-explicit-any"
+                "no-sloppy-imports"
             ],
             "exclude": [
-                "ban-types",
                 "require-await",
-                "no-sloppy-imports",
-                "no-explicit-any"
+                "no-sloppy-imports"
             ]
+        },
+        "decorators": {
+            "enabled": true
         }
     }
 }

@@ -26,10 +26,16 @@ interface CatchHandler {
     instance: any;
 }
 
+/**
+ * 路由解析器：读取容器中由装饰器全局注册的元数据，
+ * 将 Controller 方法挂载为 Hono 路由，并负责参数构建、
+ * AOP 切面织入与 `@Catched` 全局异常分发。
+ */
 export class Router {
     private hono: Hono;
     private globalHandlers: CatchHandler[] = [];
 
+    /** @param hono 要挂载路由的 Hono 实例 */
     constructor(hono: Hono) {
         this.hono = hono;
     }

@@ -1,7 +1,7 @@
 {
     "name": "@vecmat/kirinriki",
     "version": "1.0.0",
-    "description": "基于Hono框架实现一个企业级的typescript web框架。",
+    "description": "基于 Hono 的企业级 TypeScript Web 框架：IOC 依赖注入、装饰器路由、参数提取与 zod 校验、AOP 切面、全局异常处理，支持 Node.js / Deno / Bun / Cloudflare Workers。",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "scripts": {
@@ -13,7 +13,19 @@
         "example:bun": "bun run example/main.ts",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
-    "keywords": [],
+    "keywords": [
+        "hono",
+        "web",
+        "framework",
+        "ioc",
+        "di",
+        "decorators",
+        "aop",
+        "typescript",
+        "deno",
+        "bun",
+        "cloudflare-workers"
+    ],
     "author": "",
     "license": "ISC",
     "dependencies": {

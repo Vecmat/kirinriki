@@ -1,7 +1,9 @@
-import { container } from '../core/container';
-import { CATCH_KEY } from '../core/define';
+import { container } from "../core/container";
+import { CATCH_KEY } from "../core/define";
 
+/** 异常处理器元数据定义 */
 export interface CatchDefinition {
+    /** 匹配的错误 key，支持 `"PREFIX_*"` 通配 */
     errorKey: string;
 }
 

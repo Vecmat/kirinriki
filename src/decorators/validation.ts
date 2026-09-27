@@ -3,13 +3,19 @@ import { container } from '../core/container';
 import { PARAM_VALIDATOR_KEY, VALIDATE_SCHEMA_KEY } from '../core/define';
 import { Exception } from '../core/exception';
 
+/** 参数级校验器元数据定义 */
 export interface ValidatorDefinition {
+    /** 被校验参数在方法入参中的索引 */
     index: number;
+    /** 校验函数，返回 false 时抛出 VALIDATION_ERROR */
     validator: (value: any) => boolean;
+    /** 校验失败时的错误信息 */
     message: string;
 }
 
+/** 方法级 Schema 校验元数据定义 */
 export interface SchemaDefinition {
+    /** zod Schema（或任意 ZodTypeAny） */
     schema: z.ZodTypeAny;
 }
 
