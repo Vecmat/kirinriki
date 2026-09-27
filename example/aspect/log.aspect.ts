@@ -1,12 +1,14 @@
-import { Component } from "../../src/decorators/component";
+import { Component } from '../../src/decorators/component';
 
 @Component()
 export class LogAspect {
     async before(ctx: any, ...args: any[]) {
+        console.log('before:', ctx.ip, args);
         console.log(`[Before] ${ctx.req.method} ${ctx.req.url}`);
     }
 
     async after(ctx: any, result: any, ...args: any[]) {
+        console.log('after:', ctx.ip, args, result);
         console.log(`[After] Result:`, result);
     }
 
@@ -14,6 +16,7 @@ export class LogAspect {
         const start = Date.now();
         const result = await method(...args);
         const duration = Date.now() - start;
+        console.log('around:', ctx.ip, args, result);
         console.log(`[Around] Execution took ${duration}ms`);
         return result;
     }

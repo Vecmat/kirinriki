@@ -1,7 +1,7 @@
 {
-    "name": "kirinriki",
+    "name": "@vecmat/kirinriki",
     "version": "1.0.0",
-    "description": "基于Hono框架实现一个企业级的typescript web框架，名称定为Kirinriki,参考koatty实现（文档在koatty.md）",
+    "description": "基于Hono框架实现一个企业级的typescript web框架。",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "scripts": {

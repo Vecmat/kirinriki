@@ -1,0 +1,25 @@
+{
+    "name": "@vecmat/kirinriki",
+    "version": "1.0.0",
+    "exports": "./src/index.ts",
+    "publish": {
+        "include": [
+            "src/**/*.ts",
+            "deno.json",
+            "LICENSE",
+            "README.md"
+        ],
+        "exclude": [
+            "example/**",
+            "dist/**",
+            "dist-example/**",
+            "node_modules/**",
+            "**/*.test.ts",
+            "**/*.spec.ts",
+            "inject.ts",
+            ".git/**",
+            ".vscode/**",
+            ".idea/**"
+        ]
+    }
+}

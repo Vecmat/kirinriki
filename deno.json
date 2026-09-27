@@ -1,4 +1,6 @@
 {
+    "name": "@vecmat/kirinriki",
+    "version": "1.0.0",
     "compilerOptions": {
         "experimentalDecorators": true
     },
@@ -6,21 +8,44 @@
         "sloppy-imports"
     ],
     "nodeModulesDir": "auto",
+    "exports": "./src/index.ts",
+    "publish": {
+        "include": [
+            "src/**/*.ts",
+            "deno.json",
+            "jsr.json",
+            "LICENSE",
+            "README.md"
+        ],
+        "exclude": [
+            "example/**",
+            "dist/**",
+            "dist-example/**",
+            "node_modules/**",
+            "**/*.test.ts",
+            "**/*.spec.ts",
+            "inject.ts"
+        ]
+    },
     "tasks": {
         "dev": "deno run --allow-net --allow-env ./example/main.ts",
-        "start": "deno run --allow-net --allow-env ./example/main.ts"
+        "start": "deno run --allow-net --allow-env ./example/main.ts",
+        "publish:jsr": "deno publish --dry-run"
     },
     "lint": {
         "rules": {
             "include": [
-                "no-sloppy-imports"
+                "ban-types",
+                "require-await",
+                "no-sloppy-imports",
+                "no-explicit-any"
             ],
             "exclude": [
-                "no-sloppy-imports"
+                "ban-types",
+                "require-await",
+                "no-sloppy-imports",
+                "no-explicit-any"
             ]
-        },
-        "decorators": {
-            "enabled": true
         }
     }
 }

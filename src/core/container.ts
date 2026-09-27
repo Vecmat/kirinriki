@@ -84,7 +84,7 @@ export class Container {
     }
 
     /**
-     * 全局注册元数据（参考 koatty IOCContainer.attachPropertyData）
+     * 全局注册元数据
      * 装饰器将路由、参数、切面等定义统一挂到容器，便于运行时查询与扩展自定义注解
      * @param key 元数据键（如 ROUTER_KEY / TAGGED_PARAM / ASPECT_KEY）
      * @param data 元数据
@@ -142,4 +142,4 @@ export class Container {
     }
 }
 
-export const container = Container.getInstance();
+export const container: Container = Container.getInstance();

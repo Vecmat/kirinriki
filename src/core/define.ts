@@ -1,5 +1,5 @@
 /**
- * 容器元数据键定义（参考 koatty inject.ts 模式）
+ * 容器元数据键定义
  * 所有装饰器都通过 container.attachPropertyData(KEY, data, target, method) 全局注册
  */
 

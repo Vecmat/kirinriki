@@ -1,5 +1,5 @@
-import { container } from "../core/container";
-import { CATCH_KEY } from "../core/define";
+import { container } from '../core/container';
+import { CATCH_KEY } from '../core/define';
 
 export interface CatchDefinition {
     errorKey: string;
@@ -10,7 +10,11 @@ export interface CatchDefinition {
  * `@Exception("API_DEMO_ERROR", '用户创建失败')`
  */
 export function Exception(errorKey: string, message?: string): MethodDecorator {
-    return (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
+    return (
+        _target: any,
+        _propertyKey: string | symbol,
+        descriptor: PropertyDescriptor,
+    ) => {
         const originalMethod = descriptor.value;
 
         descriptor.value = async function (...args: any[]) {
@@ -34,8 +38,17 @@ export function Exception(errorKey: string, message?: string): MethodDecorator {
  * `@Catched("API_*")`
  */
 export function Catched(errorKey: string): MethodDecorator {
-    return (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
-        container.attachPropertyData(CATCH_KEY, { errorKey } as CatchDefinition, target, propertyKey);
+    return (
+        target: any,
+        propertyKey: string | symbol,
+        descriptor: PropertyDescriptor,
+    ) => {
+        container.attachPropertyData(
+            CATCH_KEY,
+            { errorKey } as CatchDefinition,
+            target,
+            propertyKey,
+        );
         return descriptor;
     };
 }

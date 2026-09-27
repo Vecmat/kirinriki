@@ -1,10 +1,10 @@
-import { Service } from "../../src/decorators/component";
-import { z } from "zod";
+import { z } from 'zod';
+import { Service } from '../../src/decorators/component';
 
 export const UserSchema = z.object({
-    name: z.string().min(1, "Name is required"),
-    email: z.string().email("Invalid email"),
-    age: z.number().int().positive().optional()
+    name: z.string().min(1, 'Name is required'),
+    email: z.email('Invalid email'),
+    age: z.number().int().positive().optional(),
 });
 
 export type User = z.infer<typeof UserSchema>;

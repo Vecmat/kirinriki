@@ -1,20 +1,21 @@
-import { container } from "../core/container";
-import { ASPECT_KEY, TAspectExec, TAroundExec, TAspectLike } from "../core/define";
+import { container } from '../core/container';
+import { ASPECT_KEY } from '../core/define';
+import type { TAspectExec, TAroundExec, TAspectLike } from '../core/define';
 
 export enum AopType {
-  BEFORE = "before",
-  AFTER = "after",
-  AROUND = "around",
+    BEFORE = 'before',
+    AFTER = 'after',
+    AROUND = 'around',
 }
 
 export interface AspectDefinition {
-  type: AopType;
-  /** 内联执行函数，或容器中的组件 id（如 "LogAspect"） */
-  exec: TAspectLike;
+    type: AopType;
+    /** 内联执行函数，或容器中的组件 id（如 "LogAspect"） */
+    exec: TAspectLike;
 }
 
 /**
- * 切面注入：将切面执行函数（或组件 id）注册到容器 ASPECT_KEY（参考 koatty InjectAspect）
+ * 切面注入：将切面执行函数（或组件 id）注册到容器 ASPECT_KEY
  * 自定义切面注解只需调用 InjectAspect(type, exec) 即可全局注册使用
  *
  * 执行约定：
@@ -27,13 +28,28 @@ export interface AspectDefinition {
  * @param {TAspectLike} exec 执行函数或组件 id
  * @returns {*}  {MethodDecorator}
  */
-export const InjectAspect = (type: AopType, exec: TAspectLike): MethodDecorator => {
-  return (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
-    container.attachPropertyData(ASPECT_KEY, { type, exec } as AspectDefinition, target, propertyKey);
-    return descriptor;
-  };
+export const InjectAspect = (
+    type: AopType,
+    exec: TAspectLike,
+): MethodDecorator => {
+    return (
+        target: any,
+        propertyKey: string | symbol,
+        descriptor: PropertyDescriptor,
+    ) => {
+        container.attachPropertyData(
+            ASPECT_KEY,
+            { type, exec } as AspectDefinition,
+            target,
+            propertyKey,
+        );
+        return descriptor;
+    };
 };
 
-export const Before = (exec: TAspectExec | string) => InjectAspect(AopType.BEFORE, exec);
-export const After = (exec: TAspectExec | string) => InjectAspect(AopType.AFTER, exec);
-export const Around = (exec: TAroundExec | string) => InjectAspect(AopType.AROUND, exec);
+export const Before: (exec: TAspectExec | string) => MethodDecorator = (exec) =>
+    InjectAspect(AopType.BEFORE, exec);
+export const After: (exec: TAspectExec | string) => MethodDecorator = (exec) =>
+    InjectAspect(AopType.AFTER, exec);
+export const Around: (exec: TAroundExec | string) => MethodDecorator = (exec) =>
+    InjectAspect(AopType.AROUND, exec);

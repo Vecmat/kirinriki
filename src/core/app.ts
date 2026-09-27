@@ -34,7 +34,7 @@ export class Kirinriki {
   }
 
   /** Web 标准 fetch 处理器，等价于 hono.fetch，可直接交给任意兼容运行时 */
-  get fetch() {
+  get fetch(): (request: Request, ...args: any[]) => Response | Promise<Response> {
     return this.hono.fetch;
   }
 }
