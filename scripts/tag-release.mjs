@@ -33,10 +33,11 @@ function main() {
     }
 
     // 只提交版本号文件，不夹带工作区其他改动
+    // 注意：提交信息不能包含 [skip ci] 等标记，否则标签推送会连带被 GitHub 跳过，发布工作流不会触发
     run(`git add deno.json package.json`);
     const staged = out("git diff --cached --name-only");
     if (staged) {
-        run(`git commit -m "chore: release ${tag} [skip ci]"`);
+        run(`git commit -m "chore: release ${tag}"`);
     } else {
         console.log("[tag-release] 版本号无变更，跳过提交");
     }
