@@ -1,6 +1,6 @@
 {
     "name": "@vecmat/kirinriki",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "description": "基于 Hono 的企业级 TypeScript Web 框架：IOC 依赖注入、装饰器路由、参数提取与 zod 校验、AOP 切面、全局异常处理，支持 Node.js / Deno / Bun / Cloudflare Workers。",
     "exports": "./src/index.ts",
     "publish": {
@@ -33,7 +33,8 @@
     "tasks": {
         "dev": "deno run --allow-net --allow-env ./example/main.ts",
         "start": "deno run --allow-net --allow-env ./example/main.ts",
-        "publish:jsr": "deno publish --dry-run"
+        "version:patch": "node scripts/bump-version.mjs",
+        "publish:dry": "deno publish --dry-run"
     },
     "lint": {
         "rules": {

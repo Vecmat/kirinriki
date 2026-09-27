@@ -1,4 +1,44 @@
+<p align="center">
+  <pre align="center" style="font-size: 6px;">
+    _    _      _            _ _    _
+    | |  (_)    (_)          (_) |  (_)
+    | | ___ _ __ _ _ __  _ __ _| | ___
+    | |/ / | '__| | '_ \| '__| | |/ / |
+    |   <| | |  | | | | | |  | |   <| |
+    |_|\_\_|_|  |_|_| |_|_|  |_|_|\_\_|
+
+ == https://github.com/vecmat/kirinriki ==
+ 🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘 🌑
+ </pre>
+  <p align="center">
+    <a href="https://www.npmjs.com/package/kirinriki">
+      <img src="https://badge.fury.io/js/kirinriki.svg">
+    </a>
+    <a href="https://bundlephobia.com/result?p=kirinriki@latest">
+      <img src="https://badgen.net/bundlephobia/min/kirinriki">
+    </a>
+    <a href="https://discord.gg/XpVjCQCe">
+      <img src="https://img.shields.io/badge/Chat_in-Discord-blue">
+    </a>
+  </p>
+</p>
+
 # Kirinriki
+
+> Attention!!! REST API officially available, WS/GRpc waiting for adaptation!
+
+A framework written in TypeScript that provides REST/GRPC/Websocket API to build amazing server-side applications!
+
+## Naming
+
+`Kirinriki` is a Pokémon!
+It is a word with palindrome in multiple languages.Like as koa's onion skin model.
+
+Chinese: `麒麟麒`
+English: `Girafarig`
+Thai: `คิรินริกิ` `Kirinriki`
+Korean:  `키링키` `Kirinriki`
+Japanese: `キリンリキ` `Kirinriki`
 
 [![JSR Score](https://jsr.io/badges/@vecmat/kirinriki)](https://jsr.io/@vecmat/kirinriki/score)
 [![JSR Version](https://jsr.io/badges/@vecmat/kirinriki/version)](https://jsr.io/@vecmat/kirinriki)
