@@ -15,7 +15,7 @@
         "example:deno": "deno task --cwd example start",
         "example:bun": "npm run build && npm --prefix example run start:bun",
         "version:patch": "node scripts/bump-version.mjs",
-        "release": "node scripts/bump-version.mjs && npx jsr publish --allow-dirty",
+        "release": "node scripts/bump-version.mjs && node scripts/tag-release.mjs",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "keywords": [
