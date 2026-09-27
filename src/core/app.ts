@@ -1,6 +1,32 @@
 import { Hono } from "hono";
 import { Router } from "./router";
 import { WELCOME, LOGO } from "../base/Constants";
+import { StaticService } from "./static";
+import { container, BeanType, BeanScope } from "./container";
+import { Logger } from "../kernel/logger";
+import { Config } from "../kernel/config";
+import { Cache } from "../kernel/cache";
+
+/** Kirinriki 应用构造选项 */
+export interface KirinrikiOptions {
+    /** 为 true 时不打印启动 LOGO 与欢迎语 */
+    silent?: boolean;
+    /** 为 true 时在 init 后打印路由表格。也可通过环境变量 KIRINRIKI_PRINT_ROUTES=1 开启 */
+    printRoutes?: boolean;
+}
+
+/**
+ * 读取环境变量开关（兼容 Node 的 process.env 与 Deno 的 Deno.env）。
+ * 值为 "1"、"true"、"yes"（不区分大小写）时视为开启。
+ */
+function envFlag(name: string): boolean {
+    const env =
+        (globalThis as any).process?.env ||
+        (globalThis as any).Deno?.env?.toObject?.() ||
+        {};
+    const raw = String(env[name] || "").toLowerCase();
+    return raw === "1" || raw === "true" || raw === "yes";
+}
 
 /**
  * Kirinriki 应用核心。
@@ -16,23 +42,57 @@ export class Kirinriki {
     /** Hono 实例，各运行时兼容层以此作为 fetch 入口 */
     public readonly hono: Hono;
     private router: Router;
+    private staticService: StaticService;
 
     /**
-     * @param silent 为 true 时不打印启动 LOGO 与欢迎语
+     * @param options 应用选项（silent / printRoutes）；也可传布尔值作为 silent
      */
-    constructor(silent = false) {
+    constructor(options: KirinrikiOptions | boolean = {}) {
+        const opts: KirinrikiOptions =
+            typeof options === "boolean" ? { silent: options } : options;
+        const silent = opts.silent ?? false;
+        // 路由表格开关：构造参数优先，其次环境变量 KIRINRIKI_PRINT_ROUTES
+        const printRoutes =
+            opts.printRoutes ?? envFlag("KIRINRIKI_PRINT_ROUTES");
+
         if (!silent) {
             console.log(LOGO);
             console.log(WELCOME);
         }
 
         this.hono = new Hono();
-        this.router = new Router(this.hono);
+        this.router = new Router(this.hono, printRoutes);
+        this.staticService = new StaticService(this.hono);
+
+        this.registerKernelServices();
     }
 
-    /** 挂载容器中已注册的路由。需在导出/监听前 await 完成 */
+    /** 注册框架级 Kernel 服务（Logger / Config / Cache）到容器，所有应用可注入 */
+    private registerKernelServices(): void {
+        container.register({
+            id: "Logger",
+            clazz: Logger,
+            type: BeanType.COMPONENT,
+            scope: BeanScope.SINGLETON,
+        });
+        container.register({
+            id: "Config",
+            clazz: Config,
+            type: BeanType.COMPONENT,
+            scope: BeanScope.SINGLETON,
+        });
+        container.register({
+            id: "Cache",
+            clazz: Cache,
+            type: BeanType.COMPONENT,
+            scope: BeanScope.SINGLETON,
+        });
+    }
+
+    /** 挂载容器中已注册的路由与静态资源。需在导出/监听前 await 完成 */
     async init(): Promise<this> {
         this.router.registerRoutes();
+        this.staticService.mountAll();
         return this;
     }
 
@@ -47,8 +107,8 @@ export class Kirinriki {
 
 /**
  * 创建 Kirinriki 应用实例的工厂函数。
- * @param silent 为 true 时静默启动（不打印 LOGO）
+ * @param options 应用选项（silent / printRoutes）；也可传布尔值作为 silent
  */
-export function createApp(silent = false): Kirinriki {
-    return new Kirinriki(silent);
+export function createApp(options: KirinrikiOptions | boolean = {}): Kirinriki {
+    return new Kirinriki(options);
 }

@@ -2,7 +2,10 @@
     "name": "@vecmat/kirinriki",
     "version": "1.0.0",
     "description": "基于 Hono 的企业级 TypeScript Web 框架：IOC 依赖注入、装饰器路由、参数提取与 zod 校验、AOP 切面、全局异常处理，支持 Node.js / Deno / Bun / Cloudflare Workers。",
-    "exports": "./src/index.ts",
+    "exports": "./src/mod.ts",
+    "workspace": [
+        "./example"
+    ],
     "publish": {
         "include": [
             "src/**/*.ts",
@@ -13,7 +16,6 @@
         "exclude": [
             "example/**",
             "dist/**",
-            "dist-example/**",
             "node_modules/**",
             "**/*.test.ts",
             "**/*.spec.ts",
@@ -31,24 +33,19 @@
     ],
     "nodeModulesDir": "auto",
     "tasks": {
-        "dev": "deno run --allow-net --allow-env ./example/main.ts",
-        "start": "deno run --allow-net --allow-env ./example/main.ts",
+        "dev": "deno task --cwd example dev",
+        "start": "deno task --cwd example start",
         "version:patch": "node scripts/bump-version.mjs",
         "publish:dry": "deno publish --dry-run"
     },
     "lint": {
         "rules": {
             "include": [
-                "require-await",
-                "no-sloppy-imports"
+                "require-await"
             ],
             "exclude": [
-                "require-await",
                 "no-sloppy-imports"
             ]
-        },
-        "decorators": {
-            "enabled": true
         }
     }
 }

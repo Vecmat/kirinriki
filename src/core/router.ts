@@ -1,5 +1,5 @@
-import type { Hono } from 'hono';
-import { container, BeanType, type PropertyMeta } from './container';
+import type { Hono } from "hono";
+import { container, BeanType, type PropertyMeta } from "./container";
 import {
     ASPECT_KEY,
     CATCH_KEY,
@@ -9,21 +9,30 @@ import {
     TAGGED_PARAM,
     VALIDATE_SCHEMA_KEY,
     type TAspectExec,
-} from './define';
-import { AopType, type AspectDefinition } from '../decorators/aop';
-import type { RouterOption } from '../decorators/route';
-import type { ParamDefinition } from '../decorators/param';
+} from "./define";
+import { AopType, type AspectDefinition } from "../decorators/aop";
+import type { RouterOption } from "../decorators/route";
+import type { ParamDefinition } from "../decorators/param";
 import {
     type SchemaDefinition,
     type ValidatorDefinition,
     validateWithSchema,
-} from '../decorators/validation';
-import { Exception } from './exception';
+} from "../decorators/validation";
+import { Exception } from "./exception";
+import { appRegistry } from "./app-registry";
 
 interface CatchHandler {
     errorKey: string;
     methodName: string;
     instance: any;
+}
+
+/** 已注册路由的描述信息，用于打印表格 */
+interface RouteInfo {
+    method: string;
+    path: string;
+    app: string;
+    handler: string;
 }
 
 /**
@@ -34,15 +43,21 @@ interface CatchHandler {
 export class Router {
     private hono: Hono;
     private globalHandlers: CatchHandler[] = [];
+    private printRoutes: boolean;
 
-    /** @param hono 要挂载路由的 Hono 实例 */
-    constructor(hono: Hono) {
+    /**
+     * @param hono 要挂载路由的 Hono 实例
+     * @param printRoutes 是否在注册完成后打印路由表格（默认由环境变量 KIRINRIKI_PRINT_ROUTES 控制）
+     */
+    constructor(hono: Hono, printRoutes = false) {
         this.hono = hono;
+        this.printRoutes = printRoutes;
     }
 
     /** 遍历容器中的 Controller Bean，读取全局注册的元数据并挂载到 Hono */
     registerRoutes(): void {
         const controllers = container.getByType(BeanType.CONTROLLER);
+        const routeList: RouteInfo[] = [];
 
         // 全局收集 @Catched 异常处理器（精确匹配优先于通配符）
         for (const ctrl of controllers) {
@@ -58,8 +73,8 @@ export class Router {
             }
         }
         this.globalHandlers.sort((a, b) => {
-            const aWild = a.errorKey.endsWith('*') ? 1 : 0;
-            const bWild = b.errorKey.endsWith('*') ? 1 : 0;
+            const aWild = a.errorKey.endsWith("*") ? 1 : 0;
+            const bWild = b.errorKey.endsWith("*") ? 1 : 0;
             return aWild - bWild;
         });
 
@@ -69,7 +84,13 @@ export class Router {
                 CONTROLLER_KEY,
                 clazz,
             );
-            const basePath = pathMeta?.path || '/';
+            // 控制器自身路径
+            const ctrlPath = pathMeta?.path || "/";
+            // 若控制器属于某应用，拼接应用 basePath
+            const app = appRegistry.getByController(clazz);
+            const basePath = app
+                ? this.normalizePath(app.basePath, ctrlPath)
+                : ctrlPath;
             const aops = container.listPropertyData<AspectDefinition>(
                 ASPECT_KEY,
                 clazz,
@@ -83,6 +104,13 @@ export class Router {
                 const methodName = String(route.method);
                 const fullPath = this.normalizePath(basePath, route.path);
                 const httpMethod = route.requestMethod.toLowerCase();
+
+                routeList.push({
+                    method: route.requestMethod,
+                    path: fullPath,
+                    app: app?.name || "(root)",
+                    handler: `${clazz.name}.${methodName}`,
+                });
 
                 (this.hono as any)[httpMethod](fullPath, async (c: any) => {
                     try {
@@ -102,11 +130,11 @@ export class Router {
                         const status = err.status || 500;
                         return c.json(
                             {
-                                errorKey: err.errorKey || 'INTERNAL_ERROR',
+                                errorKey: err.errorKey || "INTERNAL_ERROR",
                                 message:
                                     err.errorMessage ||
                                     err.message ||
-                                    'Internal server error',
+                                    "Internal server error",
                             },
                             status,
                         );
@@ -114,12 +142,85 @@ export class Router {
                 });
             }
         }
+
+        if (this.printRoutes) {
+            this.printRouteTable(routeList);
+        }
+    }
+
+    /** 以 ASCII 表格打印已注册路由列表 */
+    private printRouteTable(routes: RouteInfo[]): void {
+        if (routes.length === 0) {
+            console.log("[Kirinriki] No routes registered.");
+            return;
+        }
+
+        // 计算每列显示宽度（CJK 字符按 2 宽计算）
+        const cols = ["Method", "Path", "App", "Handler"];
+        const widths = cols.map((c, i) => {
+            const max = Math.max(
+                c.length,
+                ...routes.map((r) => this.displayWidth(Object.values(r)[i])),
+            );
+            return max;
+        });
+
+        const sep = "+" + widths.map((w) => "-".repeat(w + 2)).join("+") + "+";
+        const formatRow = (cells: string[]) =>
+            "| " +
+            cells
+                .map((cell, i) => this.padDisplay(cell, widths[i]))
+                .join(" | ") +
+            " |";
+
+        console.log("");
+        console.log(" Kirinriki Routes");
+        console.log(sep);
+        console.log(formatRow(cols));
+        console.log(sep);
+        for (const r of routes) {
+            console.log(formatRow([r.method, r.path, r.app, r.handler]));
+        }
+        console.log(sep);
+        console.log(` Total: ${routes.length} routes`);
+        console.log("");
+    }
+
+    /** 计算字符串的显示宽度（CJK/全角字符按 2 计算） */
+    private displayWidth(str: string): number {
+        let w = 0;
+        for (const ch of str) {
+            const code = ch.codePointAt(0) || 0;
+            // CJK 统一汉字、全角字符、日文韩文等按 2 宽
+            if (
+                (code >= 0x1100 && code <= 0x115f) ||
+                (code >= 0x2e80 && code <= 0xa4cf) ||
+                (code >= 0xa960 && code <= 0xa97f) ||
+                (code >= 0xac00 && code <= 0xd7a3) ||
+                (code >= 0xf900 && code <= 0xfaff) ||
+                (code >= 0xfe30 && code <= 0xfe4f) ||
+                (code >= 0xff00 && code <= 0xff60) ||
+                (code >= 0xffe0 && code <= 0xffe6)
+            ) {
+                w += 2;
+            } else {
+                w += 1;
+            }
+        }
+        return w;
+    }
+
+    /** 按显示宽度右补空格 */
+    private padDisplay(str: string, width: number): string {
+        const dw = this.displayWidth(str);
+        const pad = width - dw;
+        return str + " ".repeat(Math.max(pad, 0));
     }
 
     private normalizePath(base: string, path: string): string {
-        const b = base.endsWith('/') ? base.slice(0, -1) : base;
-        const p = path.startsWith('/') ? path : `/${path}`;
-        return `${b}${p}` || '/';
+        const b = base.endsWith("/") ? base.slice(0, -1) : base;
+        const p = path.startsWith("/") ? path : `/${path}`;
+        return `${b}${p}` || "/";
     }
 
     /** 通过 TAGGED_PARAM 注册的提取函数构建方法入参，并执行校验 */
@@ -148,7 +249,7 @@ export class Router {
             ) || [];
 
         // Schema 校验对象：DTO 参数或 body 来源参数
-        const schemaParam = params.find((p) => p.isDto || p.source === 'body');
+        const schemaParam = params.find((p) => p.isDto || p.source === "body");
         const args: any[] = [];
 
         for (const p of params) {
@@ -158,7 +259,7 @@ export class Router {
                 value = validateWithSchema(schema, value);
             } else if (
                 p.isDto &&
-                typeof p.dtoClass === 'function' &&
+                typeof p.dtoClass === "function" &&
                 p.dtoClass !== Object
             ) {
                 // DTO 类：plain 转 class 实例
@@ -167,7 +268,7 @@ export class Router {
 
             for (const v of validators) {
                 if (v.index === p.index && !v.validator(value)) {
-                    throw new Exception('VALIDATION_ERROR', v.message, 400);
+                    throw new Exception("VALIDATION_ERROR", v.message, 400);
                 }
             }
 
@@ -230,7 +331,7 @@ export class Router {
         args: any[],
         result?: any,
     ): Promise<void> {
-        if (typeof aop.exec === 'string') {
+        if (typeof aop.exec === "string") {
             // 组件切面：调用组件的 before/after 方法
             const bean: any = container.get(aop.exec);
             if (!bean) {
@@ -262,7 +363,7 @@ export class Router {
         args: any[],
     ): Promise<any> {
         const next = () => originalMethod(...args);
-        if (typeof aop.exec === 'string') {
+        if (typeof aop.exec === "string") {
             const bean: any = container.get(aop.exec);
             if (bean?.around) {
                 return bean.around(ctx, originalMethod, ...args);
@@ -283,8 +384,8 @@ export class Router {
     private async handleException(err: any, c: any): Promise<any> {
         const status = err.status || 500;
         const payload = {
-            errorKey: err.errorKey || 'INTERNAL_ERROR',
-            message: err.errorMessage || err.message || 'Internal server error',
+            errorKey: err.errorKey || "INTERNAL_ERROR",
+            message: err.errorMessage || err.message || "Internal server error",
         };
 
         for (const handler of this.globalHandlers) {
@@ -307,7 +408,7 @@ export class Router {
     private matchErrorKey(pattern: string, key?: string): boolean {
         if (!key) return false;
         if (pattern === key) return true;
-        if (pattern.endsWith('*')) {
+        if (pattern.endsWith("*")) {
             return key.startsWith(pattern.slice(0, -1));
         }
         return false;

@@ -7,6 +7,7 @@ import {
     TAGGED_PARAM,
 } from "../core/define";
 import { Exception } from "../core/exception";
+import { appRegistry } from "../core/app-registry";
 
 /** 类装饰器通用选项 */
 export interface ComponentOptions {
@@ -16,6 +17,12 @@ export interface ComponentOptions {
     scope?: BeanScope;
     /** 加载优先级（数值越大越优先） */
     priority?: number;
+}
+
+/** 控制器专属选项 */
+export interface ControllerOptions extends ComponentOptions {
+    /** 所属应用名（对应 `@App` 的 name）。设置后路由自动拼接应用 basePath */
+    app?: string;
 }
 
 function registerBean(
@@ -73,12 +80,16 @@ export function Service(options?: ComponentOptions): ClassDecorator {
  * 控制器装饰器：将类注册为 Controller，并声明该控制器的基础路径。
  * 类中被 `@Get`/`@Post` 等标记的方法会在 `init()` 时挂载到该路径之下。
  *
+ * 若指定 `app`，则路由路径会自动拼接所属应用的 basePath，
+ * 如 `@Controller("/login", { app: "auth" })` + `@App({ basePath: "/auth" })`
+ * 最终路由为 `/auth/login`。
+ *
  * @param path 基础路径，默认 `"/"`
- * @param options Bean id、作用域等选项
+ * @param options Bean id、作用域、所属应用等选项
  */
 export function Controller(
     path?: string,
-    options?: ComponentOptions,
+    options?: ControllerOptions,
 ): ClassDecorator {
     return (target: any) => {
         const id = options?.id || target.name;
@@ -89,6 +100,10 @@ export function Controller(
             { path: path || "/" },
             target,
         );
+        // 绑定控制器到所属应用
+        if (options?.app) {
+            appRegistry.bindController(target, options.app);
+        }
     };
 }
 

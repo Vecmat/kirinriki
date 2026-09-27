@@ -201,6 +201,42 @@ export class AppController {
 }
 ```
 
+### 路由表格打印
+
+应用启动时可打印已注册路由的 ASCII 表格，方便测试查阅：
+
+```
+ Kirinriki Routes
++--------+--------------------------+---------+-------------------------------+
+| Method | Path                     | App     | Handler                       |
++--------+--------------------------+---------+-------------------------------+
+| GET    | /user/                   | (root)  | UserController.list           |
+| POST   | /auth/login              | auth    | AuthController.login          |
+| GET    | /payment/orders/:orderId | payment | PaymentController.getOrder    |
++--------+--------------------------+---------+-------------------------------+
+ Total: 12 routes
+```
+
+支持两种开关方式（可任选其一）：
+
+**方式一：构造函数参数**
+
+```typescript
+const app = new Kirinriki({ printRoutes: true });
+```
+
+**方式二：环境变量**（无需改代码）
+
+```bash
+# Node.js / Bun
+KIRINRIKI_PRINT_ROUTES=1 npm run example
+
+# Deno
+KIRINRIKI_PRINT_ROUTES=1 deno task start
+```
+
+环境变量值为 `1`、`true`、`yes`（不区分大小写）时开启；构造参数优先级高于环境变量。
+
 ## 运行时兼容性
 
 框架本身只使用标准 Web API 与 hono/zod，可运行于：

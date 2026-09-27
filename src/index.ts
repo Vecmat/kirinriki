@@ -27,10 +27,19 @@ import "reflect-metadata";
 
 // Core
 export { Kirinriki, createApp } from "./core/app";
+export type { KirinrikiOptions } from "./core/app";
 
 export { Container, container, BeanScope, BeanType } from "./core/container";
 export { Exception, createException } from "./core/exception";
 export { Router } from "./core/router";
+export { AppRegistry, appRegistry, generateAppHash } from "./core/app-registry";
+export type { AppDefinition } from "./core/app-registry";
+export { StaticService } from "./core/static";
+
+// Kernel - 框架级公用服务（所有应用可注入）
+export { Logger } from "./kernel/logger";
+export { Config } from "./kernel/config";
+export { Cache } from "./kernel/cache";
 
 // 元数据键与全局类型（自定义注解注册使用）
 export {
@@ -41,19 +50,58 @@ export {
     VALIDATE_SCHEMA_KEY,
     ASPECT_KEY,
     CATCH_KEY,
-    AUTOWIRED_KEY
+    AUTOWIRED_KEY,
 } from "./core/define";
-export type { TParams, TAspectExec, TAroundExec, TAspectLike } from "./core/define";
+export type {
+    TParams,
+    TAspectExec,
+    TAroundExec,
+    TAspectLike,
+} from "./core/define";
 
 // Decorators - Component
-export { Component, Service, Controller, Action, Middleware, Autowired, Inject } from "./decorators/component";
+export {
+    Component,
+    Service,
+    Controller,
+    Action,
+    Middleware,
+    Autowired,
+    Inject,
+} from "./decorators/component";
+export type {
+    ComponentOptions,
+    ControllerOptions,
+} from "./decorators/component";
+
+// Decorators - App
+export { App, createAppDecorators } from "./decorators/app";
+export type { AppOptions, AppDecorators } from "./decorators/app";
 
 // Decorators - Route
-export { InjectRouter, Get, Post, Put, Delete, Patch, Options, Head, All, HttpMethod } from "./decorators/route";
+export {
+    InjectRouter,
+    Get,
+    Post,
+    Put,
+    Delete,
+    Patch,
+    Options,
+    Head,
+    All,
+    HttpMethod,
+} from "./decorators/route";
 export type { RouterOption } from "./decorators/route";
 
 // Decorators - Params
-export { InjectParams, ParamsQuery, ParamsPath, ParamsBody, ParamsHeader, Ctx } from "./decorators/param";
+export {
+    InjectParams,
+    ParamsQuery,
+    ParamsPath,
+    ParamsBody,
+    ParamsHeader,
+    Ctx,
+} from "./decorators/param";
 export type { ParamDefinition } from "./decorators/param";
 
 // Decorators - AOP
@@ -61,7 +109,10 @@ export { InjectAspect, Before, After, Around, AopType } from "./decorators/aop";
 export type { AspectDefinition } from "./decorators/aop";
 
 // Decorators - Exception
-export { Catched, Exception as ExceptionDecorator } from "./decorators/exception";
+export {
+    Catched,
+    Exception as ExceptionDecorator,
+} from "./decorators/exception";
 
 // Decorators - Validation
 export { Valid, Validated, validateWithSchema } from "./decorators/validation";

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Service } from '../../src/decorators/component';
+import { Service } from "@vecmat/kirinriki";
 
 export const UserSchema = z.object({
     name: z.string().min(1, 'Name is required'),

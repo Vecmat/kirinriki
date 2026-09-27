@@ -1,0 +1,18 @@
+{
+    "//": "example 独立构建配置：继承根 tsconfig，产物输出到本目录 dist。框架通过 node_modules workspace 链接（file:..）解析 @vecmat/kirinriki 到根 dist。",
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        "rootDir": ".",
+        "outDir": "./dist",
+        "sourceMap": false,
+        "declaration": false,
+        "declarationMap": false
+    },
+    "include": [
+        "./**/*.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist"
+    ]
+}

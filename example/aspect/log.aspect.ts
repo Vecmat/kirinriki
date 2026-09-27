@@ -1,4 +1,4 @@
-import { Component } from '../../src/decorators/component';
+import { Component } from "@vecmat/kirinriki";
 
 @Component()
 export class LogAspect {

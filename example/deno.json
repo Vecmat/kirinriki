@@ -1,0 +1,32 @@
+{
+    "name": "@kirinriki/example",
+    "version": "0.0.0",
+    "private": true,
+    "exports": "./main.ts",
+    "description": "Kirinriki 框架示例（多应用：auth / payment）。作为 Deno workspace 成员，通过相对路径映射引用本地框架源码。",
+    "tasks": {
+        "dev": "deno run --watch --allow-net --allow-env --allow-read ./main.ts",
+        "start": "deno run --allow-net --allow-env --allow-read ./main.ts",
+        "check": "deno check main.ts"
+    },
+    "imports": {
+        "@vecmat/kirinriki": "../src/mod.ts",
+        "@hono/node-server": "npm:@hono/node-server@^2.1.1",
+        "hono": "npm:hono@^4.13.9",
+        "reflect-metadata": "npm:reflect-metadata@^0.2.2",
+        "zod": "npm:zod@^4.6.5"
+    },
+    "compilerOptions": {
+        "experimentalDecorators": true
+    },
+    "lint": {
+        "rules": {
+            "include": [
+                "require-await"
+            ],
+            "exclude": [
+                "no-sloppy-imports"
+            ]
+        }
+    }
+}
