@@ -1,19 +1,21 @@
-# 发布工作流：自动递增 patch 版本号 → OIDC 发布到 JSR → 回写版本提交。
+# 发布工作流：自动递增 patch 版本号 → 提交并推送 → OIDC 发布到 JSR。
 #
 # 触发方式：Actions 页面选择本工作流 → "Run workflow"（手动发布，避免每个 main 提交都发版）。
 # 前置条件：在 https://jsr.io 的包设置页（Settings）中将本包链接到 GitHub 仓库。
 #
+# 注意顺序：JSR 要求发布时 git 工作区干净（provenance 要绑定准确的 commit），
+# 所以必须先把版本号提交并推送，再执行发布。
 # OIDC 发布无需任何 Secret，JSR 会自动生成 SLSA provenance（"Built and signed on GitHub Actions"）。
 name: Release
 
-on:s
+on:
   workflow_dispatch:
 
 jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 回写版本号提交需要
+      contents: write # 推送版本号提交需要
       id-token: write # OIDC ID token，用于向 JSR 认证
     steps:
       - uses: actions/checkout@v4
@@ -33,18 +35,18 @@ jobs:
         id: bump
         run: echo "version=$(node scripts/bump-version.mjs | tail -1)" >> "$GITHUB_OUTPUT"
 
-      # dry-run 先做一次完整校验（slow types / ESM 等），失败则中止，不产生脏提交
-      - name: Validate publish (dry-run)
-        run: deno publish --dry-run
-
-      - name: Publish to JSR
-        run: deno publish
-
-      # 发布成功后把版本号回写到仓库；[skip ci] 防止该提交再次触发工作流
-      - name: Commit version bump
+      # 提交并推送版本号，使发布时工作区干净且 commit 已存在于 GitHub
+      - name: Commit and push version bump
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add deno.json package.json
           git commit -m "chore: release v${{ steps.bump.outputs.version }} [skip ci]"
           git push
+
+      # 完整校验（slow types / ESM 等），失败则中止；已推送的版本可手工补发布或发下一个 patch
+      - name: Validate publish (dry-run)
+        run: deno publish --dry-run
+
+      - name: Publish to JSR
+        run: deno publish
