@@ -8,6 +8,7 @@
     "npm:reflect-metadata@~0.2.2": "0.2.2",
     "npm:ts-node@^10.9.2": "10.9.2_@types+node@26.6.3_typescript@7.0.2",
     "npm:typescript@^7.0.2": "7.0.2",
+    "npm:ws@^8.22.0": "8.22.0",
     "npm:zod@^4.6.5": "4.6.5"
   },
   "npm": {
@@ -238,6 +239,9 @@
     "v8-compile-cache-lib@3.0.1": {
       "integrity": "sha512-wa7YjyUGfNZngI/vtK0UHAN+lgDCxBPCylVXGp0zu59Fz5aiGtNXaq3DhIov063MorB+VfufLh3JlF2KdTK3xg=="
     },
+    "ws@8.22.0": {
+      "integrity": "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg=="
+    },
     "yn@3.1.1": {
       "integrity": "sha512-Ux4ygGWsu2c7isFWe8Yu1YluJmqVhxqK2cLXNQA5AcC3QfbGNpM7fu0Y8b/z16pXLnFxZYvWhd3fhBY9DLmC6Q=="
     },
@@ -255,6 +259,7 @@
         "npm:reflect-metadata@~0.2.2",
         "npm:ts-node@^10.9.2",
         "npm:typescript@^7.0.2",
+        "npm:ws@^8.22.0",
         "npm:zod@^4.6.5"
       ]
     },

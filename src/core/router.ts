@@ -1,4 +1,5 @@
 import type { Hono } from "hono";
+import type { UpgradeWebSocket, WSEvents } from "hono/ws";
 import { container, BeanType, type PropertyMeta } from "./container";
 import {
     ASPECT_KEY,
@@ -8,11 +9,13 @@ import {
     ROUTER_KEY,
     TAGGED_PARAM,
     VALIDATE_SCHEMA_KEY,
+    WEBSOCKET_KEY,
     type TAspectExec,
 } from "./define";
 import { AopType, type AspectDefinition } from "../decorators/aop";
-import type { RouterOption } from "../decorators/route";
+import { HttpMethod, type RouterOption } from "../decorators/route";
 import type { ParamDefinition } from "../decorators/param";
+import { WsEventType, type WebSocketOption } from "../decorators/websocket";
 import {
     type SchemaDefinition,
     type ValidatorDefinition,
@@ -44,14 +47,28 @@ export class Router {
     private hono: Hono;
     private globalHandlers: CatchHandler[] = [];
     private printRoutes: boolean;
+    /**
+     * 运行时提供的 WebSocket 升级函数。
+     * 不同运行时来源不同：`hono/deno`、`hono/bun`、`hono/cloudflare-workers`
+     * 或 `@hono/node-server`，由应用构造时通过选项注入，框架不绑定具体运行时。
+     */
+    private upgradeWebSocket: UpgradeWebSocket<any, any> | undefined;
+    /** 缺少升级函数时只告警一次，避免日志刷屏 */
+    private warnedMissingUpgrade = false;
 
     /**
      * @param hono 要挂载路由的 Hono 实例
      * @param printRoutes 是否在注册完成后打印路由表格（默认由环境变量 KIRINRIKI_PRINT_ROUTES 控制）
+     * @param upgradeWebSocket 运行时提供的 WebSocket 升级函数（可选）
      */
-    constructor(hono: Hono, printRoutes = false) {
+    constructor(
+        hono: Hono,
+        printRoutes = false,
+        upgradeWebSocket?: UpgradeWebSocket<any, any>,
+    ) {
         this.hono = hono;
         this.printRoutes = printRoutes;
+        this.upgradeWebSocket = upgradeWebSocket;
     }
 
     /** 遍历容器中的 Controller Bean，读取全局注册的元数据并挂载到 Hono */
@@ -108,7 +125,7 @@ export class Router {
                 routeList.push({
                     method: route.requestMethod,
                     path: fullPath,
-                    app: app?.name || "(root)",
+                    app: app?.name || "<Main>",
                     handler: `${clazz.name}.${methodName}`,
                 });
 
@@ -141,6 +158,16 @@ export class Router {
                     }
                 });
             }
+
+            // Controller 中声明了任意 @OnOpen/@OnMessage/@OnClose/@OnError 时，
+            // 在控制器基础路径上挂载 WebSocket 升级路由（GET）
+            this.registerWebSocket(
+                controller,
+                clazz,
+                basePath,
+                app?.name,
+                routeList,
+            );
         }
 
         if (this.printRoutes) {
@@ -174,7 +201,6 @@ export class Router {
             " |";
 
         console.log("");
-        console.log(" Kirinriki Routes");
         console.log(sep);
         console.log(formatRow(cols));
         console.log(sep);
@@ -221,6 +247,272 @@ export class Router {
         const b = base.endsWith("/") ? base.slice(0, -1) : base;
         const p = path.startsWith("/") ? path : `/${path}`;
         return `${b}${p}` || "/";
+    }
+
+    /** 去除末尾斜杠用于路径等价比较（"/link/" 与 "/link" 视为同一路径） */
+    private trimTrailingSlash(path: string): string {
+        return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+    }
+
+    /**
+     * 注册 Controller 级 WebSocket 端点。
+     *
+     * 控制器基础路径（含所属应用 basePath）即 WebSocket 握手地址，
+     * 如 `@Controller("/link")` 的 WS 端点为 `GET /link`（协议升级），
+     * 同控制器内的 `@Get("/status")` 等 HTTP 路由照常挂载，互不影响。
+     */
+    private registerWebSocket(
+        controller: any,
+        clazz: any,
+        basePath: string,
+        appName: string | undefined,
+        routeList: RouteInfo[],
+    ): void {
+        const metas = container.listPropertyData<WebSocketOption>(
+            WEBSOCKET_KEY,
+            clazz,
+        );
+        if (metas.length === 0) return;
+
+        routeList.push({
+            method: "WS",
+            path: basePath,
+            app: appName || "<Main>",
+            handler: `${clazz.name}.[websocket]`,
+        });
+
+        // 与同路径 GET 路由冲突检测：Hono 按注册顺序匹配，HTTP 路由先注册会优先生效
+        const conflict = container
+            .listPropertyData<RouterOption>(ROUTER_KEY, clazz)
+            .some(
+                (m) =>
+                    m.data.requestMethod === HttpMethod.GET &&
+                    this.trimTrailingSlash(
+                        this.normalizePath(basePath, m.data.path),
+                    ) === this.trimTrailingSlash(basePath),
+            );
+        if (conflict) {
+            console.warn(
+                `[Kirinriki] Controller "${clazz.name}" declares WebSocket handlers and a GET route on "${basePath}"; ` +
+                    "the HTTP route is registered first and will take precedence.",
+            );
+        }
+
+        if (!this.upgradeWebSocket) {
+            if (!this.warnedMissingUpgrade) {
+                this.warnedMissingUpgrade = true;
+                console.warn(
+                    '[Kirinriki] WebSocket controllers found, but no "upgradeWebSocket" adapter was provided. ' +
+                        'Pass it via "new Kirinriki({ websocket: upgradeWebSocket })" from "hono/deno", ' +
+                        '"hono/bun", "hono/cloudflare-workers" or "@hono/node-server".',
+                );
+            }
+            // 未注入运行时适配器时给出明确的 501 响应，而非静默 404
+            (this.hono as any).get(basePath, (c: any) =>
+                c.json(
+                    {
+                        errorKey: "WEBSOCKET_NOT_CONFIGURED",
+                        message:
+                            "WebSocket is not configured on the server: missing runtime upgradeWebSocket adapter.",
+                    },
+                    501,
+                ),
+            );
+            return;
+        }
+
+        const events = this.buildWsEvents(controller, clazz.name, metas);
+        (this.hono as any).get(
+            basePath,
+            this.upgradeWebSocket(() => events),
+        );
+    }
+
+    /**
+     * 将 @OnOpen/@OnMessage/@OnClose/@OnError 元数据包装为 Hono WSEvents。
+     *
+     * `@OnMessage` 支持 socket.io 风格的消息分发：
+     * - `@OnMessage("chat")` → 客户端须发送 JSON 信封 `{"event":"chat","data":...}`，
+     *   匹配后处理器收到 `(data, ws)`，data 为信封中的 data 字段（任意类型）。
+     * - `@OnMessage()` 无参 → 兜底处理器，接收全部消息，签名 `(event: MessageEvent, ws)`。
+     *   未被具体 messageType 匹配的消息（含非 JSON）会回落到此。
+     *
+     * 处理器以控制器实例为 this 调用；异步处理器的拒绝会被捕获并打印，
+     * 避免产生 unhandled rejection。
+     */
+    private buildWsEvents(
+        controller: any,
+        clazzName: string,
+        metas: PropertyMeta<WebSocketOption>[],
+    ): WSEvents {
+        const eventKey: Record<WsEventType, keyof WSEvents> = {
+            [WsEventType.OPEN]: "onOpen",
+            [WsEventType.MESSAGE]: "onMessage",
+            [WsEventType.CLOSE]: "onClose",
+            [WsEventType.ERROR]: "onError",
+        };
+        const events: WSEvents = {};
+
+        // 消息分发：按 messageType 收集具体处理器 + 最多一个兜底处理器
+        const messageHandlers = new Map<string, string>();
+        let catchAllMethod = "";
+
+        for (const meta of metas) {
+            const { event } = meta.data;
+            const methodName = String(meta.data.method ?? meta.propertyKey);
+
+            if (event === WsEventType.MESSAGE) {
+                const mt = meta.data.messageType;
+                if (mt) {
+                    if (messageHandlers.has(mt)) {
+                        console.warn(
+                            `[Kirinriki] Duplicate @OnMessage("${mt}") in "${clazzName}.${methodName}"; ignoring.`,
+                        );
+                        continue;
+                    }
+                    messageHandlers.set(mt, methodName);
+                } else {
+                    if (catchAllMethod) {
+                        console.warn(
+                            `[Kirinriki] Duplicate @OnMessage() fallback in "${clazzName}.${methodName}"; ignoring.`,
+                        );
+                        continue;
+                    }
+                    catchAllMethod = methodName;
+                }
+                continue;
+            }
+
+            // 非 MESSAGE 事件：保持原有逻辑（去重 + 直接绑定）
+            if ((events as any)[eventKey[event]]) {
+                console.warn(
+                    `[Kirinriki] Duplicate WebSocket handler for "${event}" in "${clazzName}.${methodName}"; ignoring.`,
+                );
+                continue;
+            }
+
+            const invoke = (evt: unknown, ws: unknown): unknown => {
+                try {
+                    const args =
+                        event === WsEventType.OPEN ? [ws, evt] : [evt, ws];
+                    const ret = controller[methodName].call(
+                        controller,
+                        ...args,
+                    );
+                    if (ret && typeof (ret as any).then === "function") {
+                        return (ret as Promise<unknown>).catch((err) => {
+                            console.error(
+                                `[Kirinriki] WebSocket "${event}" handler "${clazzName}.${methodName}" failed:`,
+                                err,
+                            );
+                        });
+                    }
+                    return ret;
+                } catch (err) {
+                    console.error(
+                        `[Kirinriki] WebSocket "${event}" handler "${clazzName}.${methodName}" threw:`,
+                        err,
+                    );
+                }
+            };
+
+            (events as any)[eventKey[event]] = invoke;
+        }
+
+        // 若存在任一 @OnMessage 变体，组装 onMessage 回调
+        if (messageHandlers.size > 0 || catchAllMethod) {
+            events.onMessage = (evt: any, ws: any) => {
+                this.dispatchMessage(
+                    controller,
+                    clazzName,
+                    evt,
+                    ws,
+                    messageHandlers,
+                    catchAllMethod,
+                );
+            };
+        }
+
+        return events;
+    }
+
+    /**
+     * 消息分发核心：解析 JSON 信封，按 event 字段路由到具体处理器；
+     * 未匹配或非 JSON 时回落到兜底处理器。
+     */
+    private dispatchMessage(
+        controller: any,
+        clazzName: string,
+        evt: any,
+        ws: any,
+        messageHandlers: Map<string, string>,
+        catchAllMethod: string,
+    ): void {
+        const raw = evt.data;
+        let parsed: any = null;
+        let matched = false;
+        // 尝试 JSON 解析信封 { event, data }
+        if (typeof raw === "string") {
+            try {
+                parsed = JSON.parse(raw);
+                if (
+                    parsed &&
+                    typeof parsed === "object" &&
+                    typeof parsed.event === "string"
+                ) {
+                    const handler = messageHandlers.get(parsed.event);
+                    if (handler) {
+                        matched = true;
+                        this.invokeMessageHandler(
+                            controller,
+                            clazzName,
+                            handler,
+                            parsed.event,
+                            [parsed.data, ws],
+                        );
+                    }
+                }
+            } catch {
+                // 非 JSON，走兜底
+            }
+        }
+
+        // 未匹配具体处理器 → 回落到兜底
+        if (!matched && catchAllMethod) {
+            this.invokeMessageHandler(
+                controller,
+                clazzName,
+                catchAllMethod,
+                "*",
+                [evt, ws],
+            );
+        }
+    }
+
+    /** 调用单个消息处理器，捕获同步异常与异步拒绝 */
+    private invokeMessageHandler(
+        controller: any,
+        clazzName: string,
+        methodName: string,
+        eventLabel: string,
+        args: unknown[],
+    ): void {
+        try {
+            const ret = controller[methodName].call(controller, ...args);
+            if (ret && typeof (ret as any).then === "function") {
+                (ret as Promise<unknown>).catch((err) => {
+                    console.error(
+                        `[Kirinriki] @OnMessage("${eventLabel}") handler "${clazzName}.${methodName}" failed:`,
+                        err,
+                    );
+                });
+            }
+        } catch (err) {
+            console.error(
+                `[Kirinriki] @OnMessage("${eventLabel}") handler "${clazzName}.${methodName}" threw:`,
+                err,
+            );
+        }
     }
 
     /** 通过 TAGGED_PARAM 注册的提取函数构建方法入参，并执行校验 */

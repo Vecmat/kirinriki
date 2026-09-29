@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { UpgradeWebSocket } from "hono/ws";
 import { Router } from "./router";
 import { WELCOME, LOGO } from "../base/Constants";
 import { StaticService } from "./static";
@@ -13,6 +14,19 @@ export interface KirinrikiOptions {
     silent?: boolean;
     /** 为 true 时在 init 后打印路由表格。也可通过环境变量 KIRINRIKI_PRINT_ROUTES=1 开启 */
     printRoutes?: boolean;
+    /**
+     * 运行时提供的 WebSocket 升级函数，供 `@OnOpen/@OnMessage/@OnClose/@OnError` 使用。
+     *
+     * 不同运行时的导入来源：
+     * - Deno: `import { upgradeWebSocket } from "hono/deno"`
+     * - Bun: `import { upgradeWebSocket } from "hono/bun"`
+     * - Cloudflare Workers: `import { upgradeWebSocket } from "hono/cloudflare-workers"`
+     * - Node.js: `import { upgradeWebSocket } from "@hono/node-server"`，
+     *   且 `serve()` 需传入 `websocket: { server: new WebSocketServer({ noServer: true }) }`
+     *
+     * 未提供时，含 WebSocket 处理器的控制器路径会返回 501 并打印告警。
+     */
+    websocket?: UpgradeWebSocket<any, any>;
 }
 
 /**
@@ -61,7 +75,7 @@ export class Kirinriki {
         }
 
         this.hono = new Hono();
-        this.router = new Router(this.hono, printRoutes);
+        this.router = new Router(this.hono, printRoutes, opts.websocket);
         this.staticService = new StaticService(this.hono);
 
         this.registerKernelServices();

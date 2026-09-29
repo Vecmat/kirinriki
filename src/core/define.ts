@@ -19,6 +19,8 @@ export const ASPECT_KEY = "ASPECT_KEY";
 export const CATCH_KEY = "CATCH_KEY";
 /** 依赖注入（@Autowired/@Inject） */
 export const AUTOWIRED_KEY = "AUTOWIRED_KEY";
+/** WebSocket 事件处理器（@OnOpen/@OnMessage/@OnClose/@OnError） */
+export const WEBSOCKET_KEY = "WEBSOCKET_KEY";
 
 /** 参数提取函数：从 Hono Context 中提取参数值 */
 export type TParams = (ctx: any, idx?: number) => any;

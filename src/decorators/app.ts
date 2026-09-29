@@ -10,6 +10,7 @@ import {
 } from "./param";
 import { Valid, Validated } from "./validation";
 import { Before, After, Around } from "./aop";
+import { OnOpen, OnMessage, OnClose, OnError } from "./websocket";
 
 /** `@App` 装饰器选项 */
 export interface AppOptions {
@@ -72,6 +73,10 @@ export interface AppDecorators {
     Before: typeof Before;
     After: typeof After;
     Around: typeof Around;
+    OnOpen: typeof OnOpen;
+    OnMessage: typeof OnMessage;
+    OnClose: typeof OnClose;
+    OnError: typeof OnError;
 }
 
 /**
@@ -130,5 +135,10 @@ export function createAppDecorators(appName: string): AppDecorators {
         Before,
         After,
         Around,
+        // WebSocket 装饰器
+        OnOpen,
+        OnMessage,
+        OnClose,
+        OnError,
     };
 }

@@ -51,6 +51,7 @@ export {
     ASPECT_KEY,
     CATCH_KEY,
     AUTOWIRED_KEY,
+    WEBSOCKET_KEY,
 } from "./core/define";
 export type {
     TParams,
@@ -92,6 +93,25 @@ export {
     HttpMethod,
 } from "./decorators/route";
 export type { RouterOption } from "./decorators/route";
+
+// Decorators - WebSocket
+export {
+    InjectWebSocket,
+    OnOpen,
+    OnMessage,
+    OnClose,
+    OnError,
+    WsEventType,
+} from "./decorators/websocket";
+export type { WebSocketOption } from "./decorators/websocket";
+
+// WebSocket 类型（由 hono/ws 透传，便于编写处理器签名）
+export type {
+    WSContext,
+    WSMessageReceive,
+    WSEvents,
+    UpgradeWebSocket,
+} from "hono/ws";
 
 // Decorators - Params
 export {

@@ -5,6 +5,7 @@ import {
     CONTROLLER_KEY,
     ROUTER_KEY,
     TAGGED_PARAM,
+    WEBSOCKET_KEY,
 } from "../core/define";
 import { Exception } from "../core/exception";
 import { appRegistry } from "../core/app-registry";
@@ -36,11 +37,12 @@ function registerBean(
     if (type !== BeanType.CONTROLLER) {
         const misuse =
             container.listPropertyData(ROUTER_KEY, target).length > 0 ||
-            container.listPropertyData(TAGGED_PARAM, target).length > 0;
+            container.listPropertyData(TAGGED_PARAM, target).length > 0 ||
+            container.listPropertyData(WEBSOCKET_KEY, target).length > 0;
         if (misuse) {
             throw new Exception(
                 "BOOTERR_DEPRO_UNSUITED",
-                "Route/Param decorators are only used in controllers class.",
+                "Route/Param/WebSocket decorators are only used in controllers class.",
             );
         }
     }
