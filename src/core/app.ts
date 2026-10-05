@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import type { UpgradeWebSocket } from "hono/ws";
 import { Router } from "./router";
 import { WELCOME, LOGO } from "../base/Constants";
-import { StaticService } from "./static";
 import { container, BeanType, BeanScope } from "./container";
 import { Logger } from "../kernel/logger";
 import { Config } from "../kernel/config";
@@ -56,7 +55,17 @@ export class Kirinriki {
     /** Hono 实例，各运行时兼容层以此作为 fetch 入口 */
     public readonly hono: Hono;
     private router: Router;
-    private staticService: StaticService;
+
+    /**
+     * 注册中间件，直接映射到 Hono 的 `use`，签名完全一致。
+     *
+     * - `app.use(mw)`：注册全局中间件
+     * - `app.use("/api/*", mw)`：注册路径级中间件
+     * - `app.use(mw1, mw2)`：一次注册多个
+     *
+     * 需在 `init()` 之前调用，以保证中间件先于控制器路由生效。
+     */
+    public use: Hono["use"];
 
     /**
      * @param options 应用选项（silent / printRoutes）；也可传布尔值作为 silent
@@ -75,8 +84,9 @@ export class Kirinriki {
         }
 
         this.hono = new Hono();
+        // 绑定 Hono.use：保持其全部重载签名与 this 指向
+        this.use = this.hono.use.bind(this.hono);
         this.router = new Router(this.hono, printRoutes, opts.websocket);
-        this.staticService = new StaticService(this.hono);
 
         this.registerKernelServices();
     }
@@ -103,10 +113,11 @@ export class Kirinriki {
         });
     }
 
-    /** 挂载容器中已注册的路由与静态资源。需在导出/监听前 await 完成 */
+    /** 挂载容器中已注册的路由。需在导出/监听前 await 完成。
+     *
+     */
     async init(): Promise<this> {
         this.router.registerRoutes();
-        this.staticService.mountAll();
         return this;
     }
 

@@ -34,7 +34,6 @@ export { Exception, createException } from "./core/exception";
 export { Router } from "./core/router";
 export { AppRegistry, appRegistry, generateAppHash } from "./core/app-registry";
 export type { AppDefinition } from "./core/app-registry";
-export { StaticService } from "./core/static";
 
 // Kernel - 框架级公用服务（所有应用可注入）
 export { Logger } from "./kernel/logger";
