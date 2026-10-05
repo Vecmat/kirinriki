@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import { Kirinriki, StaticService } from "@vecmat/kirinriki";
+import { Kirinriki } from "@vecmat/kirinriki";
 import type { UpgradeWebSocket } from "@vecmat/kirinriki";
 
 // 各模块在被 import 时通过装饰器自动注册到 IOC 容器
@@ -24,9 +24,12 @@ import "./apps/link";
  */
 
 export function createExampleApp(websocket?: UpgradeWebSocket): Kirinriki {
-    const app = new Kirinriki({ printRoutes: true, websocket });
-    // 静态资源由应用自行绑定（框架不再自动挂载）：
-    // 将各子应用 @App({ staticDir }) 声明的目录挂到 /{appHash}/*
-    new StaticService(app.hono).mountAll();
+    const app = new Kirinriki({ printRoutes: true });
+
+    // WebSocket 适配器通过方法绑定（框架不绑定具体运行时）
+    if (websocket) {
+        app.bindWebSocket(websocket);
+    }
+
     return app;
 }

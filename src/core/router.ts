@@ -50,7 +50,7 @@ export class Router {
     /**
      * 运行时提供的 WebSocket 升级函数。
      * 不同运行时来源不同：`hono/deno`、`hono/bun`、`hono/cloudflare-workers`
-     * 或 `@hono/node-server`，由应用构造时通过选项注入，框架不绑定具体运行时。
+     * 或 `@hono/node-server`，由应用通过 `bindWebSocket` 注入，框架不绑定具体运行时。
      */
     private upgradeWebSocket: UpgradeWebSocket<any, any> | undefined;
     /** 缺少升级函数时只告警一次，避免日志刷屏 */
@@ -59,20 +59,23 @@ export class Router {
     /**
      * @param hono 要挂载路由的 Hono 实例
      * @param printRoutes 是否在注册完成后打印路由表格（默认由环境变量 KIRINRIKI_PRINT_ROUTES 控制）
-     * @param upgradeWebSocket 运行时提供的 WebSocket 升级函数（可选）
      */
-    constructor(
-        hono: Hono,
-        printRoutes = false,
-        upgradeWebSocket?: UpgradeWebSocket<any, any>,
-    ) {
+    constructor(hono: Hono, printRoutes = false) {
         this.hono = hono;
         this.printRoutes = printRoutes;
-        this.upgradeWebSocket = upgradeWebSocket;
     }
 
-    /** 遍历容器中的 Controller Bean，读取全局注册的元数据并挂载到 Hono */
-    registerRoutes(): void {
+    /**
+     * 遍历容器中的 Controller Bean，读取全局注册的元数据并挂载到 Hono。
+     *
+     * @param upgradeWebSocket 运行时提供的 WebSocket 升级函数（可选）；
+     *   若提供则覆盖内部已存的适配器
+     */
+    registerRoutes(upgradeWebSocket?: UpgradeWebSocket<any, any>): void {
+        if (upgradeWebSocket !== undefined) {
+            this.upgradeWebSocket = upgradeWebSocket;
+        }
+
         const controllers = container.getByType(BeanType.CONTROLLER);
         const routeList: RouteInfo[] = [];
 
@@ -303,7 +306,7 @@ export class Router {
                 this.warnedMissingUpgrade = true;
                 console.warn(
                     '[Kirinriki] WebSocket controllers found, but no "upgradeWebSocket" adapter was provided. ' +
-                        'Pass it via "new Kirinriki({ websocket: upgradeWebSocket })" from "hono/deno", ' +
+                        'Pass it via "app.bindWebSocket(upgradeWebSocket)" from "hono/deno", ' +
                         '"hono/bun", "hono/cloudflare-workers" or "@hono/node-server".',
                 );
             }

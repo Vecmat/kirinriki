@@ -13,19 +13,6 @@ export interface KirinrikiOptions {
     silent?: boolean;
     /** 为 true 时在 init 后打印路由表格。也可通过环境变量 KIRINRIKI_PRINT_ROUTES=1 开启 */
     printRoutes?: boolean;
-    /**
-     * 运行时提供的 WebSocket 升级函数，供 `@OnOpen/@OnMessage/@OnClose/@OnError` 使用。
-     *
-     * 不同运行时的导入来源：
-     * - Deno: `import { upgradeWebSocket } from "hono/deno"`
-     * - Bun: `import { upgradeWebSocket } from "hono/bun"`
-     * - Cloudflare Workers: `import { upgradeWebSocket } from "hono/cloudflare-workers"`
-     * - Node.js: `import { upgradeWebSocket } from "@hono/node-server"`，
-     *   且 `serve()` 需传入 `websocket: { server: new WebSocketServer({ noServer: true }) }`
-     *
-     * 未提供时，含 WebSocket 处理器的控制器路径会返回 501 并打印告警。
-     */
-    websocket?: UpgradeWebSocket<any, any>;
 }
 
 /**
@@ -55,6 +42,12 @@ export class Kirinriki {
     /** Hono 实例，各运行时兼容层以此作为 fetch 入口 */
     public readonly hono: Hono;
     private router: Router;
+    /**
+     * 运行时提供的 WebSocket 升级函数，由 {@link bindWebSocket} 注入。
+     * 不同运行时来源不同：`hono/deno`、`hono/bun`、`hono/cloudflare-workers`
+     * 或 `@hono/node-server`，框架不绑定具体运行时。
+     */
+    private upgradeWebSocket: UpgradeWebSocket<any, any> | undefined;
 
     /**
      * 注册中间件，直接映射到 Hono 的 `use`，签名完全一致。
@@ -86,9 +79,28 @@ export class Kirinriki {
         this.hono = new Hono();
         // 绑定 Hono.use：保持其全部重载签名与 this 指向
         this.use = this.hono.use.bind(this.hono);
-        this.router = new Router(this.hono, printRoutes, opts.websocket);
+        this.router = new Router(this.hono, printRoutes);
 
         this.registerKernelServices();
+    }
+
+    /**
+     * 绑定运行时 WebSocket 升级函数，供 `@OnOpen/@OnMessage/@OnClose/@OnError` 使用。
+     *
+     * 不同运行时的导入来源：
+     * - Deno: `import { upgradeWebSocket } from "hono/deno"`
+     * - Bun: `import { upgradeWebSocket } from "hono/bun"`
+     * - Cloudflare Workers: `import { upgradeWebSocket } from "hono/cloudflare-workers"`
+     * - Node.js: `import { upgradeWebSocket } from "@hono/node-server"`，
+     *   且 `serve()` 需传入 `websocket: { server: new WebSocketServer({ noServer: true }) }`
+     *
+     * 必须在 `init()` 之前调用；未调用时，含 WebSocket 处理器的控制器路径会返回 501 并打印告警。
+     *
+     * @returns this，支持链式调用
+     */
+    bindWebSocket(upgradeWebSocket: UpgradeWebSocket<any, any>): this {
+        this.upgradeWebSocket = upgradeWebSocket;
+        return this;
     }
 
     /** 注册框架级 Kernel 服务（Logger / Config / Cache）到容器，所有应用可注入 */
@@ -117,7 +129,7 @@ export class Kirinriki {
      *
      */
     async init(): Promise<this> {
-        this.router.registerRoutes();
+        this.router.registerRoutes(this.upgradeWebSocket);
         return this;
     }
 
@@ -128,12 +140,4 @@ export class Kirinriki {
     ) => Response | Promise<Response> {
         return this.hono.fetch;
     }
-}
-
-/**
- * 创建 Kirinriki 应用实例的工厂函数。
- * @param options 应用选项（silent / printRoutes）；也可传布尔值作为 silent
- */
-export function createApp(options: KirinrikiOptions | boolean = {}): Kirinriki {
-    return new Kirinriki(options);
 }

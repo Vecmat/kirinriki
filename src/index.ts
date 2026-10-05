@@ -26,7 +26,7 @@
 import "reflect-metadata";
 
 // Core
-export { Kirinriki, createApp } from "./core/app";
+export { Kirinriki } from "./core/app";
 export type { KirinrikiOptions } from "./core/app";
 
 export { Container, container, BeanScope, BeanType } from "./core/container";
