@@ -16,20 +16,8 @@ export interface AppDefinition {
     staticDir?: string;
     /** 应用声明文件的绝对目录路径，用于解析 staticDir */
     appDir: string;
-    /** 基于应用名稳定生成的 8 位 hash，用于静态资源访问路径 */
+    /** 应用级 hash，由创建子应用时在 `@App({ hash })` 中显式提供，用于静态资源访问路径 */
     appHash: string;
-}
-
-/** 基于应用名生成稳定的 8 位 hash（前端构建时可固定引用） */
-export function generateAppHash(name: string): string {
-    // 简易 FNV-1a hash，避免引入 crypto 依赖（跨运行时通用）
-    let hash = 0x811c9dc5;
-    for (let i = 0; i < name.length; i++) {
-        hash ^= name.charCodeAt(i);
-        hash = Math.imul(hash, 0x01000193);
-    }
-    // 转为 8 位十六进制，保证稳定且 URL 友好
-    return (hash >>> 0).toString(16).padStart(8, "0").slice(0, 8);
 }
 
 /**

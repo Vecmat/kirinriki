@@ -32,7 +32,7 @@ export type { KirinrikiOptions } from "./core/app";
 export { Container, container, BeanScope, BeanType } from "./core/container";
 export { Exception, createException } from "./core/exception";
 export { Router } from "./core/router";
-export { AppRegistry, appRegistry, generateAppHash } from "./core/app-registry";
+export { AppRegistry, appRegistry } from "./core/app-registry";
 export type { AppDefinition } from "./core/app-registry";
 
 // Kernel - 框架级公用服务（所有应用可注入）

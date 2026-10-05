@@ -1,9 +1,4 @@
-import {
-    App,
-    Autowired,
-    Service,
-    createAppDecorators,
-} from "@vecmat/kirinriki";
+import { Autowired, Service, createAppDecorators } from "@vecmat/kirinriki";
 
 /**
  * Test 应用 —— 单文件应用示例。
@@ -13,10 +8,10 @@ import {
  * createAppDecorators 也可内联调用，无需单独的 base/decorators.ts。
  */
 
-// 内联调用工厂：@Controller 自动绑定 app: "test"
-const { Controller, Get } = createAppDecorators("test");
+// 内联调用工厂：@App 自动绑定 name，@Controller 自动绑定 app: "test"
+const { App, Controller, Get } = createAppDecorators("test");
 
-@App({ name: "test", basePath: "/test" })
+@App({ basePath: "/test", hash: "afd071e5" })
 export class TestApp {}
 
 @Service()

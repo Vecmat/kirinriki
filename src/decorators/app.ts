@@ -1,4 +1,4 @@
-import { appRegistry, generateAppHash } from "../core/app-registry";
+import { appRegistry } from "../core/app-registry";
 import { Controller, type ControllerOptions } from "./component";
 import { Get, Post, Put, Delete, Patch, Options, Head, All } from "./route";
 import {
@@ -18,6 +18,12 @@ export interface AppOptions {
     name: string;
     /** 路由前缀（如 "/auth"），应用内控制器路径自动拼接此前缀 */
     basePath: string;
+    /**
+     * 应用级 hash，作为静态资源访问路径前缀 `/{hash}/*`。
+     * 需在创建子应用时显式申请获取并固定下来（不自动生成），
+     * 前端构建时据此固定引用。
+     */
+    hash: string;
     /** 静态资源目录。可传相对路径（相对于运行时 cwd）或绝对路径；纯接口应用可省略 */
     staticDir?: string;
 }
@@ -25,32 +31,33 @@ export interface AppOptions {
 /**
  * 子应用声明装饰器。
  *
- * 每个子应用用此装饰器声明其元数据：名称、路由前缀、静态目录。
- * 框架据此为应用内控制器自动拼接 basePath，并把静态资源挂到 `/{appHash}/*` 路径。
+ * 每个子应用用此装饰器声明其元数据：名称、路由前缀、hash、静态目录。
+ * 框架据此为应用内控制器自动拼接 basePath，并把静态资源挂到 `/{hash}/*` 路径。
  *
- * appHash 基于应用名稳定生成（8 位十六进制），前端构建时可固定引用。
+ * hash 由应用创建时显式提供（申请获取），一旦发布不宜变更，否则前端引用会失效。
  *
  * @example
  * ```ts
- * @App({ name: "auth", basePath: "/auth", staticDir: "apps/auth/static" })
+ * @App({ name: "auth", basePath: "/auth", hash: "953fa84f", staticDir: "apps/auth/static" })
  * export class AuthApp {}
  * ```
  */
 export function App(options: AppOptions): ClassDecorator {
     return (target: any) => {
-        const appHash = generateAppHash(options.name);
         appRegistry.register({
             name: options.name,
             basePath: options.basePath,
             staticDir: options.staticDir,
             appDir: "",
-            appHash,
+            appHash: options.hash,
         });
     };
 }
 
 /** 应用级装饰器集合类型 */
 export interface AppDecorators {
+    /** 已绑定应用名的 @App 装饰器，options 中无需再传 name */
+    App: (options: Omit<AppOptions, "name">) => ClassDecorator;
     Controller: (
         path?: string,
         options?: Omit<ControllerOptions, "app">,
@@ -89,7 +96,15 @@ export interface AppDecorators {
  * ```ts
  * // apps/auth/base/decorators.ts
  * import { createAppDecorators } from "@vecmat/kirinriki";
- * export const { Controller, Get, Post, ParamsBody, ... } = createAppDecorators("auth");
+ * export const { App, Controller, Get, Post, ParamsBody, ... } = createAppDecorators("auth");
+ * ```
+ *
+ * 应用声明（name 自动注入，关联关系一目了然）：
+ * ```ts
+ * import { App } from "./base/decorators";
+ *
+ * @App({ basePath: "/auth", hash: "953fa84f" })  // 自动绑定 name: "auth"
+ * export class AuthApp {}
  * ```
  *
  * 应用内控制器：
@@ -100,10 +115,14 @@ export interface AppDecorators {
  * export class AuthController { ... }
  * ```
  *
- * @param appName 应用名（必须与 `@App` 的 name 一致）
+ * @param appName 应用名（同时作为 @App 的 name 与 @Controller 的 app 绑定值）
  * @returns 绑定了该应用的装饰器集合
  */
 export function createAppDecorators(appName: string): AppDecorators {
+    /** 绑定了 appName 的 App：自动注入 name 选项 */
+    const BoundApp = (options: Omit<AppOptions, "name">): ClassDecorator =>
+        App({ ...options, name: appName });
+
     /** 绑定了 appName 的 Controller：自动注入 app 选项 */
     const AppController = (
         path?: string,
@@ -111,6 +130,8 @@ export function createAppDecorators(appName: string): AppDecorators {
     ): ClassDecorator => Controller(path, { ...options, app: appName });
 
     return {
+        /** 已绑定应用名的应用声明装饰器，无需传 name */
+        App: BoundApp,
         /** 已绑定应用的控制器装饰器，无需传 app */
         Controller: AppController,
         // 路由装饰器（直接透传，无需 app 信息）
