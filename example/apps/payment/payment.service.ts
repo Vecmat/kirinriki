@@ -1,4 +1,5 @@
-import { Service, Autowired, Logger, Config } from "@vecmat/kirinriki";
+import { Logger, Config } from "@vecmat/kirinriki";
+import { Service, Autowired } from "./decorators";
 
 /**
  * Payment 应用内部业务服务。

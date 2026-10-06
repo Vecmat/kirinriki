@@ -1,5 +1,6 @@
-import { Autowired, Exception, Logger } from "@vecmat/kirinriki";
+import { Exception, Logger } from "@vecmat/kirinriki";
 import {
+    Autowired,
     Ctx,
     Controller,
     Get,

@@ -1,5 +1,6 @@
-import { Autowired, Exception, Logger, Cache } from "@vecmat/kirinriki";
+import { Exception, Logger, Cache } from "@vecmat/kirinriki";
 import {
+    Autowired,
     Controller,
     Get,
     Post,
@@ -7,7 +8,7 @@ import {
     ParamsHeader,
 } from "../base/decorators";
 import { AuthService } from "../service/auth";
-import { VerifyTokenAction } from "../action/verify-token";
+import { VerifyTokenAction } from "../action/token";
 
 /**
  * Auth 应用控制器。

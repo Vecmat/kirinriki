@@ -1,5 +1,14 @@
 import { appRegistry } from "../core/app-registry";
-import { Controller, type ControllerOptions } from "./component";
+import {
+    Component,
+    Service,
+    Controller,
+    Action,
+    Middleware,
+    Autowired,
+    Inject,
+    type ControllerOptions,
+} from "./component";
 import { Get, Post, Put, Delete, Patch, Options, Head, All } from "./route";
 import {
     ParamsQuery,
@@ -56,12 +65,18 @@ export function App(options: AppOptions): ClassDecorator {
 
 /** 应用级装饰器集合类型 */
 export interface AppDecorators {
-    /** 已绑定应用名的 @App 装饰器，options 中无需再传 name */
-    App: (options: Omit<AppOptions, "name">) => ClassDecorator;
+    /** 已绑定完整应用选项的 @App 装饰器，直接使用无需传参 */
+    App: () => ClassDecorator;
     Controller: (
         path?: string,
         options?: Omit<ControllerOptions, "app">,
     ) => ClassDecorator;
+    Component: typeof Component;
+    Service: typeof Service;
+    Action: typeof Action;
+    Middleware: typeof Middleware;
+    Autowired: typeof Autowired;
+    Inject: typeof Inject;
     Get: typeof Get;
     Post: typeof Post;
     Put: typeof Put;
@@ -92,18 +107,24 @@ export interface AppDecorators {
  * 应用内控制器使用此工厂返回的 `@Controller` 时，无需再传 `{ app: "xxx" }`，
  * 工厂会自动把应用名注入。其他装饰器（路由/参数/校验/AOP）直接透传框架实现。
  *
- * 建议在每个子应用的 `base/decorators.ts` 中调用一次并导出：
+ * 建议在每个子应用的 `base/decorators.ts` 中调用一次并导出，
+ * 应用的全部元数据（name/basePath/hash/staticDir）集中于此一处声明：
  * ```ts
  * // apps/auth/base/decorators.ts
  * import { createAppDecorators } from "@vecmat/kirinriki";
- * export const { App, Controller, Get, Post, ParamsBody, ... } = createAppDecorators("auth");
+ * export const { App, Controller, Get, Post, ParamsBody, ... } = createAppDecorators({
+ *   name: "auth",
+ *   basePath: "/auth",
+ *   hash: "953fa84f",
+ *   staticDir: "apps/auth/static",
+ * });
  * ```
  *
- * 应用声明（name 自动注入，关联关系一目了然）：
+ * 应用声明（选项已由工厂绑定，无需传参）：
  * ```ts
  * import { App } from "./base/decorators";
  *
- * @App({ basePath: "/auth", hash: "953fa84f" })  // 自动绑定 name: "auth"
+ * @App()
  * export class AuthApp {}
  * ```
  *
@@ -115,13 +136,14 @@ export interface AppDecorators {
  * export class AuthController { ... }
  * ```
  *
- * @param appName 应用名（同时作为 @App 的 name 与 @Controller 的 app 绑定值）
+ * @param options 应用选项（name 同时作为 @Controller 的 app 绑定值）
  * @returns 绑定了该应用的装饰器集合
  */
-export function createAppDecorators(appName: string): AppDecorators {
-    /** 绑定了 appName 的 App：自动注入 name 选项 */
-    const BoundApp = (options: Omit<AppOptions, "name">): ClassDecorator =>
-        App({ ...options, name: appName });
+export function createAppDecorators(options: AppOptions): AppDecorators {
+    const appName = options.name;
+
+    /** 绑定了完整应用选项的 App：无参使用 */
+    const BoundApp = (): ClassDecorator => App(options);
 
     /** 绑定了 appName 的 Controller：自动注入 app 选项 */
     const AppController = (
@@ -130,10 +152,17 @@ export function createAppDecorators(appName: string): AppDecorators {
     ): ClassDecorator => Controller(path, { ...options, app: appName });
 
     return {
-        /** 已绑定应用名的应用声明装饰器，无需传 name */
+        /** 已绑定应用选项的应用声明装饰器，无参使用 */
         App: BoundApp,
         /** 已绑定应用的控制器装饰器，无需传 app */
         Controller: AppController,
+        // Bean / 依赖注入装饰器（直接透传，无需 app 信息）
+        Component,
+        Service,
+        Action,
+        Middleware,
+        Autowired,
+        Inject,
         // 路由装饰器（直接透传，无需 app 信息）
         Get,
         Post,

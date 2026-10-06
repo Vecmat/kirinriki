@@ -2,13 +2,19 @@ import { createAppDecorators } from "@vecmat/kirinriki";
 
 /**
  * Payment 应用专用装饰器集合。
- * 调用 createAppDecorators("payment") 后：
- * - 此处导出的 @App 已自动绑定 name: "payment"，声明应用时无需再传 name；
+ * 应用全部元数据（name/basePath/hash/staticDir）集中于此一处声明：
+ * - 此处导出的 @App 已绑定完整选项，声明应用时无参使用；
  * - @Controller 已自动绑定 app: "payment"。
  */
 export const {
     App,
     Controller,
+    Component,
+    Service,
+    Action,
+    Middleware,
+    Autowired,
+    Inject,
     Get,
     Post,
     Put,
@@ -27,4 +33,9 @@ export const {
     Before,
     After,
     Around,
-} = createAppDecorators("payment");
+} = createAppDecorators({
+    name: "payment",
+    basePath: "/payment",
+    hash: "b3a22171",
+    staticDir: "apps/payment/static",
+});

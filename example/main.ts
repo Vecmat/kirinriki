@@ -31,7 +31,6 @@ async function main() {
     } else {
         // Node.js / Bun：@hono/node-server 兼容层
         const { serve } = await import("@hono/node-server");
-
         // Node 下 WebSocket 还需 ws 提供的 WebSocketServer（npm i ws）
         let websocket: { server: unknown } | undefined;
         try {

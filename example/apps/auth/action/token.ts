@@ -1,4 +1,5 @@
-import { Action, Autowired, Logger } from "@vecmat/kirinriki";
+import { Logger } from "@vecmat/kirinriki";
+import { Action, Autowired } from "../base/decorators";
 import { AuthService } from "../service/auth";
 
 /**

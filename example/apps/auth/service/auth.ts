@@ -1,4 +1,5 @@
-import { Service, Autowired, Logger } from "@vecmat/kirinriki";
+import { Logger } from "@vecmat/kirinriki";
+import { Service, Autowired } from "../base/decorators";
 
 /**
  * Auth 应用内部业务服务。
