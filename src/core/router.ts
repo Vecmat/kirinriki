@@ -249,6 +249,8 @@ export class Router {
     private normalizePath(base: string, path: string): string {
         const b = base.endsWith("/") ? base.slice(0, -1) : base;
         const p = path.startsWith("/") ? path : `/${path}`;
+        // 方法路径仅为 "/" 时不给 basePath 追加末尾斜杠（Hono 视 "/api" 与 "/api/" 为不同路由）
+        if (p === "/" && b) return b || "/";
         return `${b}${p}` || "/";
     }
 

@@ -8,7 +8,9 @@
         "build": "tsc",
         "version:patch": "node scripts/bump-version.mjs",
         "release": "node scripts/bump-version.mjs && node scripts/tag-release.mjs",
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:cov": "vitest run --coverage"
     },
     "keywords": [
         "hono",
@@ -34,7 +36,9 @@
         "@hono/node-server": "^2.1.1",
         "@types/node": "^26.6.2",
         "@types/reflect-metadata": "^0.0.5",
+        "@vitest/coverage-v8": "^5.0.4",
         "ts-node": "^10.9.2",
-        "typescript": "^7.0.2"
+        "typescript": "^7.0.2",
+        "vitest": "^5.0.4"
     }
 }
