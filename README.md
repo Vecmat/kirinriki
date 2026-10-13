@@ -238,10 +238,10 @@ const app = new Kirinriki({ printRoutes: true });
 
 ```bash
 # Node.js / Bun
-KIRINRIKI_PRINT_ROUTES=1 npm run example
+KIRINRIKI_PRINT_ROUTES=1 node your-entry.js
 
 # Deno
-KIRINRIKI_PRINT_ROUTES=1 deno task start
+KIRINRIKI_PRINT_ROUTES=1 deno run your-entry.ts
 ```
 
 环境变量值为 `1`、`true`、`yes`（不区分大小写）时开启；构造参数优先级高于环境变量。

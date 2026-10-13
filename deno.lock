@@ -262,27 +262,6 @@
         "npm:zod@^4.6.5"
       ]
     },
-    "members": {
-      "example": {
-        "dependencies": [
-          "npm:@hono/node-server@^2.1.1",
-          "npm:hono@^4.13.9",
-          "npm:reflect-metadata@~0.2.2",
-          "npm:zod@^4.6.5"
-        ],
-        "packageJson": {
-          "dependencies": [
-            "npm:@hono/node-server@^2.1.1",
-            "npm:@types/node@^26.6.2",
-            "npm:@types/reflect-metadata@^0.0.5",
-            "npm:hono@^4.13.9",
-            "npm:reflect-metadata@~0.2.2",
-            "npm:typescript@^7.0.2",
-            "npm:ws@^8.22.0",
-            "npm:zod@^4.6.5"
-          ]
-        }
-      }
-    }
+    "members": {}
   }
 }
