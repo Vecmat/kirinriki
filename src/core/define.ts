@@ -21,6 +21,18 @@ export const CATCH_KEY = "CATCH_KEY";
 export const AUTOWIRED_KEY = "AUTOWIRED_KEY";
 /** WebSocket 事件处理器（@OnOpen/@OnMessage/@OnClose/@OnError） */
 export const WEBSOCKET_KEY = "WEBSOCKET_KEY";
+/** 生命周期钩子（@OnInit/@OnReady/@OnDestroy） */
+export const LIFECYCLE_KEY = "LIFECYCLE_KEY";
+
+/** 应用生命周期事件 */
+export enum LifecycleEvent {
+    /** init() 开始时、路由注册前触发：适合建立连接、预热资源 */
+    INIT = "init",
+    /** init() 完成、路由已注册后触发：适合启动后台任务 */
+    READY = "ready",
+    /** destroy() 时触发：适合释放连接、清理资源（优雅关闭） */
+    DESTROY = "destroy",
+}
 
 /** 参数提取函数：从 Hono Context 中提取参数值 */
 export type TParams = (ctx: any, idx?: number) => any;

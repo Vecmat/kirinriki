@@ -3,6 +3,8 @@ import type { UpgradeWebSocket } from "hono/ws";
 import { Router } from "./router";
 import { WELCOME, LOGO } from "../base/Constants";
 import { container, BeanType, BeanScope } from "./container";
+import { LifecycleEvent } from "./define";
+import { runLifecycle, type LifecycleHookFn } from "./lifecycle";
 import { Logger } from "../kernel/logger";
 import { Config } from "../kernel/config";
 import { Cache } from "../kernel/cache";
@@ -48,6 +50,13 @@ export class Kirinriki {
      * 或 `@hono/node-server`，框架不绑定具体运行时。
      */
     private upgradeWebSocket: UpgradeWebSocket<any, any> | undefined;
+
+    /** 函数形式的生命周期钩子（通过 onInit/onReady/onDestroy 注册） */
+    private lifecycleFns: Record<LifecycleEvent, LifecycleHookFn[]> = {
+        [LifecycleEvent.INIT]: [],
+        [LifecycleEvent.READY]: [],
+        [LifecycleEvent.DESTROY]: [],
+    };
 
     /**
      * 注册中间件，直接映射到 Hono 的 `use`，签名完全一致。
@@ -125,11 +134,66 @@ export class Kirinriki {
         });
     }
 
-    /** 挂载容器中已注册的路由。需在导出/监听前 await 完成。
-     *
+    /**
+     * 注册函数形式的 INIT 生命周期钩子（路由注册前执行）。
+     * Bean 方法钩子（@OnInit）先于函数钩子执行。
+     * @returns this，支持链式调用
+     */
+    onInit(fn: LifecycleHookFn): this {
+        this.lifecycleFns[LifecycleEvent.INIT].push(fn);
+        return this;
+    }
+
+    /**
+     * 注册函数形式的 READY 生命周期钩子（路由注册后执行）。
+     * Bean 方法钩子（@OnReady）先于函数钩子执行。
+     * @returns this，支持链式调用
+     */
+    onReady(fn: LifecycleHookFn): this {
+        this.lifecycleFns[LifecycleEvent.READY].push(fn);
+        return this;
+    }
+
+    /**
+     * 注册函数形式的 DESTROY 生命周期钩子（destroy() 时执行）。
+     * Bean 方法钩子（@OnDestroy）先于函数钩子执行。
+     * @returns this，支持链式调用
+     */
+    onDestroy(fn: LifecycleHookFn): this {
+        this.lifecycleFns[LifecycleEvent.DESTROY].push(fn);
+        return this;
+    }
+
+    /**
+     * 启动应用：依次执行 INIT 钩子 → 挂载容器中的路由 → READY 钩子。
+     * 需在导出/监听前 await 完成。
      */
     async init(): Promise<this> {
+        await runLifecycle(
+            LifecycleEvent.INIT,
+            this,
+            this.lifecycleFns[LifecycleEvent.INIT],
+        );
         this.router.registerRoutes(this.upgradeWebSocket);
+        await runLifecycle(
+            LifecycleEvent.READY,
+            this,
+            this.lifecycleFns[LifecycleEvent.READY],
+        );
+        return this;
+    }
+
+    /**
+     * 销毁应用：执行全部 DESTROY 钩子（Bean 的 @OnDestroy 方法 + onDestroy 函数）。
+     * 用于优雅关闭（释放连接、停止后台任务）；框架不持有监听句柄，
+     * 停止监听由运行时负责，destroy 只处理业务资源清理。
+     */
+    async destroy(): Promise<this> {
+        await runLifecycle(
+            LifecycleEvent.DESTROY,
+            this,
+            this.lifecycleFns[LifecycleEvent.DESTROY],
+        );
         return this;
     }
 

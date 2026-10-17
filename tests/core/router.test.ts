@@ -31,7 +31,7 @@ import {
 } from "../../src/decorators/exception";
 import { OnOpen } from "../../src/decorators/websocket";
 import { Exception } from "../../src/core/exception";
-import { resetGlobals } from "../helpers/reset";
+import { resetGlobals, captureConsole } from "../helpers/reset";
 
 /** 构造一个绑定到 Hono 的 Router 并执行 registerRoutes，返回 hono + router */
 function makeRouter(printRoutes = false): { hono: Hono; router: Router } {
@@ -484,10 +484,20 @@ describe("Router", () => {
             }
             void Ctrl;
 
-            const r = makeRouter();
-            const res = await fetchJson(r.hono, "GET", "/api");
-            expect(res.status).toBe(200);
-            expect(res.body).toEqual({ ok: true });
+            const cap = captureConsole();
+            let res: { status: number; body: any };
+            try {
+                const r = makeRouter();
+                res = await fetchJson(r.hono, "GET", "/api");
+            } finally {
+                cap.restore();
+            }
+            expect(res!.status).toBe(200);
+            expect(res!.body).toEqual({ ok: true });
+            const warns = cap.logs.warn.map((a) => a.join(" ")).join("\n");
+            expect(warns).toContain(
+                'Aspect component "MissingAspect" not found in container',
+            );
         });
     });
 
@@ -688,10 +698,18 @@ describe("Router", () => {
             }
             void Ctrl;
 
-            const r = makeRouter();
-            const res = await fetchJson(r.hono, "GET", "/link");
-            expect(res.status).toBe(501);
-            expect(res.body.errorKey).toBe("WEBSOCKET_NOT_CONFIGURED");
+            const cap = captureConsole();
+            let res: { status: number; body: any };
+            try {
+                const r = makeRouter();
+                res = await fetchJson(r.hono, "GET", "/link");
+            } finally {
+                cap.restore();
+            }
+            expect(res!.status).toBe(501);
+            expect(res!.body.errorKey).toBe("WEBSOCKET_NOT_CONFIGURED");
+            const warns = cap.logs.warn.map((a) => a.join(" ")).join("\n");
+            expect(warns).toContain('no "upgradeWebSocket" adapter');
         });
 
         it("HTTP 路由不受 WS 端点影响", async () => {
@@ -706,16 +724,31 @@ describe("Router", () => {
             }
             void Ctrl;
 
-            const r = makeRouter();
-            const res = await fetchJson(r.hono, "GET", "/link/status");
-            expect(res.status).toBe(200);
-            expect(res.body).toEqual({ ok: true });
+            const cap = captureConsole();
+            let res: { status: number; body: any };
+            try {
+                const r = makeRouter();
+                res = await fetchJson(r.hono, "GET", "/link/status");
+            } finally {
+                cap.restore();
+            }
+            expect(res!.status).toBe(200);
+            expect(res!.body).toEqual({ ok: true });
+            const warns = cap.logs.warn.map((a) => a.join(" ")).join("\n");
+            expect(warns).toContain('no "upgradeWebSocket" adapter');
         });
     });
 
     describe("printRoutes", () => {
         it("printRoutes:true 不抛错（即便无路由也打印 No routes registered）", () => {
-            expect(() => makeRouter(true)).not.toThrow();
+            const cap = captureConsole();
+            try {
+                expect(() => makeRouter(true)).not.toThrow();
+            } finally {
+                cap.restore();
+            }
+            const logs = cap.logs.log.map((a) => a.join(" ")).join("\n");
+            expect(logs).toContain("No routes registered");
         });
 
         it("printRoutes:true 有路由时打印表格分隔线与 Total 行", async () => {

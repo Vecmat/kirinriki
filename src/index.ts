@@ -51,6 +51,8 @@ export {
     CATCH_KEY,
     AUTOWIRED_KEY,
     WEBSOCKET_KEY,
+    LIFECYCLE_KEY,
+    LifecycleEvent,
 } from "./core/define";
 export type {
     TParams,
@@ -58,6 +60,10 @@ export type {
     TAroundExec,
     TAspectLike,
 } from "./core/define";
+
+// Lifecycle - 生命周期钩子执行器（插件/高级用法可直接调用）
+export { runLifecycle } from "./core/lifecycle";
+export type { LifecycleHookFn } from "./core/lifecycle";
 
 // Decorators - Component
 export {
@@ -135,3 +141,6 @@ export {
 
 // Decorators - Validation
 export { Valid, Validated, validateWithSchema } from "./decorators/validation";
+
+// Decorators - Lifecycle
+export { OnInit, OnReady, OnDestroy } from "./decorators/lifecycle";
