@@ -1,4 +1,5 @@
 import { appRegistry } from "../core/app-registry";
+import { configRegistry, type ConfigField } from "../core/config-registry";
 import {
     Component,
     Service,
@@ -35,6 +36,12 @@ export interface AppOptions {
     hash: string;
     /** 静态资源目录。可传相对路径（相对于运行时 cwd）或绝对路径；纯接口应用可省略 */
     staticDir?: string;
+    /**
+     * 子应用配置项声明（key/类型/默认值），注册到统一配置中心。
+     * 配置来源（命令行/环境变量/文件/Redis）与运行时修改由主应用统一管理，
+     * 子应用内通过 `Config.get(key)` 读取。
+     */
+    config?: ConfigField[];
 }
 
 /**
@@ -60,6 +67,10 @@ export function App(options: AppOptions): ClassDecorator {
             appDir: "",
             appHash: options.hash,
         });
+        if (options.config?.length) {
+            // 配置项归属该子应用命名空间，其他应用无法通过 scope() 越权访问
+            configRegistry.register(options.config, options.name);
+        }
     };
 }
 

@@ -4,7 +4,6 @@ import { Kirinriki } from "../../src/core/app";
 import { container, BeanType } from "../../src/core/container";
 import { Logger } from "../../src/kernel/logger";
 import { Config } from "../../src/kernel/config";
-import { Cache } from "../../src/kernel/cache";
 import { resetGlobals, withEnv, captureConsole } from "../helpers/reset";
 
 describe("Kirinriki", () => {
@@ -128,15 +127,14 @@ describe("Kirinriki", () => {
     });
 
     describe("Kernel 服务注册", () => {
-        it("构造后容器包含 Logger / Config / Cache", () => {
+        it("构造后容器包含 Logger / Config", () => {
             // eslint-disable-next-line no-new
             new Kirinriki({ silent: true });
             expect(container.has("Logger")).toBe(true);
             expect(container.has("Config")).toBe(true);
-            expect(container.has("Cache")).toBe(true);
         });
 
-        it("Logger / Config / Cache 为 COMPONENT 单例", () => {
+        it("Logger / Config 为 COMPONENT 单例", () => {
             // eslint-disable-next-line no-new
             new Kirinriki({ silent: true });
             const defs = container.getDefinitions();
@@ -144,7 +142,6 @@ describe("Kirinriki", () => {
             expect(loggerDef?.type).toBe(BeanType.COMPONENT);
             expect(loggerDef?.clazz).toBe(Logger);
             expect(container.get<Config>("Config")).toBeInstanceOf(Config);
-            expect(container.get<Cache>("Cache")).toBeInstanceOf(Cache);
         });
     });
 

@@ -38,7 +38,17 @@ export type { AppDefinition } from "./core/app-registry";
 // Kernel - 框架级公用服务（所有应用可注入）
 export { Logger } from "./kernel/logger";
 export { Config } from "./kernel/config";
-export { Cache } from "./kernel/cache";
+export {
+    ConfigStore,
+    MemoryConfigStore,
+    FileConfigStore,
+    ScopedConfig,
+} from "./kernel/config";
+export type {
+    ConfigOptions,
+    ConfigSource,
+    ConfigExplain,
+} from "./kernel/config";
 
 // 元数据键与全局类型（自定义注解注册使用）
 export {
@@ -64,6 +74,18 @@ export type {
 // Lifecycle - 生命周期钩子执行器（插件/高级用法可直接调用）
 export { runLifecycle } from "./core/lifecycle";
 export type { LifecycleHookFn } from "./core/lifecycle";
+
+// Config Registry - 配置项注册（子应用声明配置参数）
+export {
+    ConfigRegistry,
+    configRegistry,
+    registerConfig,
+} from "./core/config-registry";
+export type { ConfigField, ConfigValueType } from "./core/config-registry";
+
+// Plugin - 插件生命周期（加载/卸载钩子）
+export { PluginManager } from "./core/plugin";
+export type { KirinrikiPlugin, PluginContext } from "./core/plugin";
 
 // Decorators - Component
 export {

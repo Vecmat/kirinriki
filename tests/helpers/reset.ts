@@ -10,6 +10,7 @@
 import "reflect-metadata";
 import { container } from "../../src/core/container";
 import { appRegistry } from "../../src/core/app-registry";
+import { configRegistry } from "../../src/core/config-registry";
 
 interface ContainerInternals {
     registry?: Map<unknown, unknown>;
@@ -22,6 +23,10 @@ interface AppRegistryInternals {
     controllerAppMap?: Map<unknown, unknown>;
 }
 
+interface ConfigRegistryInternals {
+    schemas?: Map<unknown, unknown>;
+}
+
 /** 重置容器与注册表的全局单例（in-place 清空内部 Map），保证测试隔离 */
 export function resetGlobals(): void {
     const c = container as unknown as ContainerInternals;
@@ -32,6 +37,9 @@ export function resetGlobals(): void {
     const r = appRegistry as unknown as AppRegistryInternals;
     r.apps?.clear();
     r.controllerAppMap?.clear();
+
+    const cr = configRegistry as unknown as ConfigRegistryInternals;
+    cr.schemas?.clear();
 }
 
 /**
