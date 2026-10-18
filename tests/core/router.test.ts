@@ -795,4 +795,22 @@ describe("Router", () => {
             expect(joined).toContain("UserController.list");
         });
     });
+
+    describe("handler 返回 Response", () => {
+        it("handler 返回 Response 时原样输出", async () => {
+            @Controller("/w")
+            class Ctrl {
+                @Get("/file")
+                file() {
+                    return new Response("bin-data", { status: 202 });
+                }
+            }
+            void Ctrl;
+
+            const r = makeRouter();
+            const res = await fetchJson(r.hono, "GET", "/w/file");
+            expect(res.status).toBe(202);
+            expect(res.body).toBeNull(); // 非 JSON 响应体
+        });
+    });
 });

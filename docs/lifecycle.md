@@ -7,14 +7,14 @@ kirinriki 应用的生命周期分为 **INIT → READY → DESTROY** 三个阶�
 ```
 app.init():
     配置中心就绪
-      → 插件 onLoad（按注册顺序）
+      → Addon onLoad（按注册顺序）
       → INIT 钩子      ← @OnInit / app.onInit
       → 路由挂载
       → READY 钩子     ← @OnReady / app.onReady
 
 app.destroy():
     DESTROY 钩子       ← @OnDestroy / app.onDestroy
-      → 插件 onUnload（按加载逆序）
+      → Addon onUnload（按加载逆序）
 ```
 
 同一阶段内的执行顺序：
@@ -58,7 +58,7 @@ export class DbService {
 
 | 装饰器 | 触发时机 | 典型用途 |
 |--------|----------|----------|
-| `@OnInit()` | `init()` 中，插件加载后、路由挂载前 | 建立数据库连接、预热缓存 |
+| `@OnInit()` | `init()` 中，Addon 加载后、路由挂载前 | 建立数据库连接、预热缓存 |
 | `@OnReady()` | `init()` 中，路由挂载后 | 启动定时任务、上报就绪状态 |
 | `@OnDestroy()` | `destroy()` 时 | 释放连接、停止后台任务 |
 
@@ -92,7 +92,7 @@ await app.destroy();
 
 ## 优雅关闭
 
-`destroy()` 负责业务资源清理（DESTROY 钩子 + 插件卸载），但不持有监听句柄——停止监听由运行时负责：
+`destroy()` 负责业务资源清理（DESTROY 钩子 + Addon 卸载），但不持有监听句柄——停止监听由运行时负责：
 
 ```ts
 // Node 示例
@@ -109,11 +109,11 @@ process.on("SIGTERM", async () => {
 });
 ```
 
-## 与插件生命周期的关系
+## 与 Addon 生命周期的关系
 
-- 插件 `onLoad` **先于** INIT 钩子执行——Bean 的 `@OnInit` 里可以安全使用插件注册的配置项与能力
-- 插件 `onUnload` **后于** DESTROY 钩子执行——Bean 的 `@OnDestroy` 里插件能力仍可用
-- 详见 [插件系统](./plugin.md)
+- Addon `onLoad` **先于** INIT 钩子执行——Bean 的 `@OnInit` 里可以安全使用 Addon 注册的配置项与能力
+- Addon `onUnload` **后于** DESTROY 钩子执行——Bean 的 `@OnDestroy` 里 Addon 能力仍可用
+- 详见 [Addon 系统](./addon.md)
 
 ## API 参考
 
@@ -137,7 +137,7 @@ process.on("SIGTERM", async () => {
 
 ### 高级：`runLifecycle(event, app, fns?)`
 
-生命周期执行器（内核与插件共用），按「Bean 方法钩子 → 函数钩子」顺序串行执行指定事件的全部钩子：
+生命周期执行器（内核与 Addon 共用），按「Bean 方法钩子 → 函数钩子」顺序串行执行指定事件的全部钩子：
 
 ```ts
 import { runLifecycle, LifecycleEvent } from "@vecmat/kirinriki";

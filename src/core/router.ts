@@ -142,6 +142,8 @@ export class Router {
                             aops,
                             c,
                         );
+                        // handler 直接返回 Response 时原样输出
+                        if (result instanceof Response) return result;
                         return c.json(result);
                     } catch (err: any) {
                         const handled = await this.handleException(err, c);

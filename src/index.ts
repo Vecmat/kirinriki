@@ -83,9 +83,9 @@ export {
 } from "./core/config-registry";
 export type { ConfigField, ConfigValueType } from "./core/config-registry";
 
-// Plugin - 插件生命周期（加载/卸载钩子）
-export { PluginManager } from "./core/plugin";
-export type { KirinrikiPlugin, PluginContext } from "./core/plugin";
+// Addon - 插件生命周期（加载/卸载钩子）与扩展协议
+export { AddonManager } from "./core/addon";
+export type { KirinrikiAddon, AddonContext } from "./core/addon";
 
 // Decorators - Component
 export {
@@ -149,7 +149,7 @@ export {
     ParamsHeader,
     Ctx,
 } from "./decorators/param";
-export type { ParamDefinition } from "./decorators/param";
+export type { ParamDefinition, ParamOption } from "./decorators/param";
 
 // Decorators - AOP
 export { InjectAspect, Before, After, Around, AopType } from "./decorators/aop";
