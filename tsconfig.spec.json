@@ -1,0 +1,15 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        // ... 其他现有配置
+        "types": [
+            "vitest/globals"
+        ]
+    },
+    // 确保你的测试文件路径包含在 TypeScript 的检测范围内
+    "include": [
+        "src/**/*",
+        "**/*.test.ts",
+        "**/*.spec.ts"
+    ]
+}

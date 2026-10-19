@@ -127,21 +127,23 @@ describe("Kirinriki", () => {
     });
 
     describe("Kernel 服务注册", () => {
-        it("构造后容器包含 Logger / Config", () => {
+        it("构造后容器包含 Logger / ConfigService", () => {
             // eslint-disable-next-line no-new
             new Kirinriki({ silent: true });
             expect(container.has("Logger")).toBe(true);
-            expect(container.has("Config")).toBe(true);
+            expect(container.has("ConfigService")).toBe(true);
         });
 
-        it("Logger / Config 为 COMPONENT 单例", () => {
+        it("Logger / ConfigService 为 COMPONENT 单例", () => {
             // eslint-disable-next-line no-new
             new Kirinriki({ silent: true });
             const defs = container.getDefinitions();
             const loggerDef = defs.find((d) => d.id === "Logger");
             expect(loggerDef?.type).toBe(BeanType.COMPONENT);
             expect(loggerDef?.clazz).toBe(Logger);
-            expect(container.get<Config>("Config")).toBeInstanceOf(Config);
+            expect(
+                container.get<Config>("ConfigService"),
+            ).toBeInstanceOf(Config);
         });
     });
 

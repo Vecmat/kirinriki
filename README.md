@@ -53,7 +53,7 @@ Japanese: `キリンリキ` `Kirinriki`
 
 
 
-基于 [Hono](https://hono.dev/) 的企业级 TypeScript Web 框架，提供完整的依赖注入、声明式路由、AOP 和参数验证能力。
+基于 [Hono](https://hono.dev/) 的企业级 TypeScript Web 框架，提供完整的依赖注入、声明式路由、中间件绑定和参数验证能力。
 
 ## 特性
 
@@ -61,7 +61,7 @@ Japanese: `キリンリキ` `Kirinriki`
 - **声明式路由**：`@Get`、`@Post`、`@Put`、`@Delete` 等方法装饰器
 - **参数提取**：`@ParamsQuery`、`@ParamsPath`、`@ParamsBody`、`@ParamsHeader`
 - **自动验证**：`@Valid`、`@Validated` 配合 zod
-- **AOP 切面**：`@Before`、`@After`、`@Around` 拦截器
+- **中间件绑定**：`@Use` 按名 / 带参 / 内联函数三种形式，`@Before` / `@After` 前置后置钩子，工厂型中间件可按使用处配置
 - **异常处理**：`@Exception`、`@Catched` 全局错误捕获（支持 `API_*` 通配）
 - **跨运行时**：Node.js、Deno、Bun、Cloudflare Workers（框架仅依赖 hono / zod / reflect-metadata）
 
@@ -157,23 +157,29 @@ export class UserController {
 }
 ```
 
-### AOP 切面
+### 中间件绑定（`@Use` / `@Before` / `@After`）
 
 ```typescript
-@Component()
-export class LogAspect {
-    async before(ctx: any) {
-        console.log(`[Before] ${ctx.req.method} ${ctx.req.path}`);
-    }
-}
+import { Use, Before, After } from "@vecmat/kirinriki";
 
 @Controller("/api")
+@Use("ratelimit", { limit: 1000 }) // 类级：按名绑定并传参（工厂型中间件）
 export class ApiController {
-    @Before("LogAspect") // 引用容器组件；也可直接传内联函数
+    @Before((c) => console.log("[Before]", c.req.method, c.req.path)) // 前置钩子
+    @After(async (c) => console.log("[After]", c.res.status))         // 后置钩子
     @Get("/data")
     async getData() { /* ... */ }
 }
 ```
+
+`@Use("name", options)` 支持**动态绑定参数**：`@Savant(name, { factory: true })`
+声明的工厂型中间件按引用处的 options 实例化——同一中间件在不同绑定处可传不同
+配置（如限流 1000/分钟与 100/分钟各一个实例）；相同 `name + options` 组合共享
+同一个实例（状态共享），不同配置各自实例化，无参引用则以默认配置实例化。
+详见 [docs/addon.md](./docs/addon.md)。
+
+`@Before` / `@After` 是 `@Use` 内联形式的便捷钩子（无需调用 `next()`）；
+需要短路请求或包裹执行流程时用 `@Use(async (c, next) => { ... })`。
 
 ### 全局异常处理
 

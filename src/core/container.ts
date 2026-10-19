@@ -21,6 +21,11 @@ export enum BeanType {
     COMPONENT = "component",
     /** 中间件组件 */
     MIDDLEWARE = "middleware",
+    /**
+     * Addon：应用扩展载体（`@Addon` 标注的类），
+     * 由 AddonManager 登记，实例经容器创建（因此支持 `@Autowired`）。
+     */
+    ADDON = "addon",
 }
 
 /** Bean 注册定义 */
@@ -126,7 +131,7 @@ export class Container {
     /**
      * 全局注册元数据
      * 装饰器将路由、参数、切面等定义统一挂到容器，便于运行时查询与扩展自定义注解
-     * @param key 元数据键（如 ROUTER_KEY / TAGGED_PARAM / ASPECT_KEY）
+     * @param key 元数据键（如 ROUTER_KEY / TAGGED_PARAM / MIDDLEWARE_KEY）
      * @param data 元数据
      * @param target 类或类原型
      * @param propertyKey 方法/属性名，类级别可省略

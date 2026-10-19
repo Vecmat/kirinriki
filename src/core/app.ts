@@ -5,7 +5,7 @@ import { WELCOME, LOGO } from "../base/Constants";
 import { container, BeanType, BeanScope } from "./container";
 import { LifecycleEvent } from "./define";
 import { runLifecycle, type LifecycleHookFn } from "./lifecycle";
-import { AddonManager, type KirinrikiAddon } from "./addon";
+import { AddonManager, type AddonClass } from "./addon";
 import { Exception } from "./exception";
 import { Logger } from "../kernel/logger";
 import { Config, type ConfigOptions } from "../kernel/config";
@@ -22,8 +22,8 @@ export interface KirinrikiOptions {
      * Redis/KV 等存储由应用或插件继承 ConfigStore 后注入。
      */
     config?: ConfigOptions;
-    /** 预注册 Addon（等价逐一调用 app.addon()），init() 时按序加载 */
-    addons?: KirinrikiAddon[];
+    /** 预注册 Addon 类（等价逐一调用 app.addon()），init() 时按序分阶段加载 */
+    addons?: AddonClass<any>[];
 }
 
 /**
@@ -70,8 +70,12 @@ export class Kirinriki {
     /** 配置中心选项（构造时传入，init() 时生效） */
     private configOptions?: ConfigOptions;
 
-    /** Addon 管理器：承载 Addon 注册与加载/卸载生命周期 */
-    private addonManager = new AddonManager();
+    /**
+     * Addon 管理器：承载 Addon 注册与加载/卸载生命周期。
+     * 公开可访问——Addon 通过 `scope.app.addonManager` 触及它，
+     * 未来框架的扩展能力（如新增管理器）也从此处挂载，无需改动 AddonScope 接口。
+     */
+    public addonManager = new AddonManager();
 
     /** 应用是否已完成 init()；init 后禁止再注册 Addon */
     private inited = false;
@@ -84,6 +88,8 @@ export class Kirinriki {
      * - `app.use(mw1, mw2)`：一次注册多个
      *
      * 需在 `init()` 之前调用，以保证中间件先于控制器路由生效。
+     * 层级说明：此处注册的中间件位于 Addon 启用中间件（`scope.middleware.use`，
+     * init 时按 priority 统一注入）的**外层**。
      */
     public use: Hono["use"];
 
@@ -95,8 +101,8 @@ export class Kirinriki {
             typeof options === "boolean" ? { silent: options } : options;
         const silent = opts.silent ?? false;
         this.configOptions = opts.config;
-        for (const addon of opts.addons ?? []) {
-            this.addonManager.register(addon);
+        for (const addonClazz of opts.addons ?? []) {
+            this.addonManager.register(addonClazz);
         }
         // 路由表格开关：构造参数优先，其次环境变量 KIRINRIKI_PRINT_ROUTES
         const printRoutes =
@@ -110,7 +116,9 @@ export class Kirinriki {
         this.hono = new Hono();
         // 绑定 Hono.use：保持其全部重载签名与 this 指向
         this.use = this.hono.use.bind(this.hono);
-        this.router = new Router(this.hono, printRoutes);
+        this.router = new Router(this.hono, printRoutes, (name, options) =>
+            this.addonManager.resolveMiddleware(name, options),
+        );
 
         this.registerKernelServices();
     }
@@ -134,7 +142,11 @@ export class Kirinriki {
         return this;
     }
 
-    /** 注册框架级 Kernel 服务（Logger / Config）到容器，所有应用可注入 */
+    /**
+     * 注册框架级 Kernel 服务（Logger / ConfigService）到容器，所有应用可注入。
+     * 配置服务容器标识为 "ConfigService"：`Config` 这个名字已被
+     * `@Config` 注解占用，避免 Addon 中 `import { Config }` 拿到错误的东西。
+     */
     private registerKernelServices(): void {
         container.register({
             id: "Logger",
@@ -143,7 +155,7 @@ export class Kirinriki {
             scope: BeanScope.SINGLETON,
         });
         container.register({
-            id: "Config",
+            id: "ConfigService",
             clazz: Config,
             type: BeanType.COMPONENT,
             scope: BeanScope.SINGLETON,
@@ -182,10 +194,11 @@ export class Kirinriki {
 
     /**
      * 配置中心服务（主应用统一读取/修改配置的入口）。
-     * 等价于 `container.get<Config>("Config")`；Kernel 服务在构造时注册，必然存在。
+     * 等价于 `container.get<ConfigService>("ConfigService")`；
+     * Kernel 服务在构造时注册，必然存在。
      */
     get config(): Config {
-        const config = container.get<Config>("Config");
+        const config = container.get<Config>("ConfigService");
         if (!config) {
             throw new Exception(
                 "INTERNAL_ERROR",
@@ -197,37 +210,62 @@ export class Kirinriki {
     }
 
     /**
-     * 注册 Addon（须在 init() 之前）。
-     * Addon 在 init() 时按注册顺序加载（配置中心就绪后、INIT 钩子前），
-     * destroy() 时按逆序卸载（DESTROY 钩子后）。
+     * 注册 Addon 类（须在 init() 之前）。
      *
-     * @param addon Addon（name 全局唯一，同时作为配置命名空间）
-     * @param options Addon 私有选项，经 AddonContext.options 传入钩子
+     * Addon 在 init() 时**按阶段统一处理**：实例化 → 收集 `@Config` 注册配置
+     * 并注入属性 → 收集 `@Savant` 登记中间件 → 执行 onLoad → 注入中间件；
+     * destroy() 时按逆序卸载。
+     *
+     * @param clazz `@Addon` 标注的类（name 全局唯一，同时作为配置命名空间）；
+     *              实例由 IOC 容器创建，因此类中可使用 `@Autowired`
+     * @param options Addon 私有选项，经 `scope.options` 与 `this.options` 提供；
+     *                泛型 T 由 Addon 类声明推导，此处会做类型校验
      * @returns this，支持链式调用
+     * @throws ADDON_NOT_DECORATED 类未使用 @Addon 装饰
      * @throws ADDON_DUPLICATED 同名 Addon 重复注册
      * @throws ADDON_TOO_LATE init() 之后注册
      */
-    addon(addon: KirinrikiAddon, options?: unknown): this {
+    addon<T = unknown>(clazz: AddonClass<T>, options?: T): this {
         if (this.inited) {
             throw new Exception(
                 "ADDON_TOO_LATE",
-                `Addon "${addon.name}" 必须在 init() 之前注册`,
+                `Addon "${clazz?.name}" 必须在 init() 之前注册`,
                 409,
             );
         }
-        this.addonManager.register(addon, options);
+        this.addonManager.register(clazz, options);
         return this;
     }
 
     /**
-     * 启动应用：初始化配置中心 → 加载 Addon（onLoad，注册序）→ 执行 INIT 钩子
-     * → 挂载容器中的路由 → READY 钩子。
-     * 配置与 Addon 均在 INIT 钩子前就绪，钩子里即可使用 Config.get()。
-     * 需在导出/监听前 await 完成。
+     * 启动应用，按固定阶段推进（顺序可预期、Addon 之间互不干扰）：
+     *
+     * 1. 初始化配置中心（stores / env 就绪）
+     * 2. **加载所有 Addon 类**：容器实例化（`@Autowired` 装配）
+     * 3. **统一处理 config**：收集全部 `@Config` → 注册进配置中心 →
+     *    注入属性（Addon 的 `this.xxx` 与 `scope.config.get()` 此时可用）
+     * 4. **统一处理中间件**：收集全部 `@Savant` → 登记名称 →
+     *    `global: true` 的进入注入队列
+     * 5. **加载 Addon**：按注册顺序执行 `onLoad(scope)`
+     * 6. **注入中间件**：按 priority 降序统一注入 Hono（先于路由注册）
+     * 7. INIT 钩子 → 挂载路由 → READY 钩子
+     *
+     * 配置与 Addon 均在 INIT 钩子前就绪，钩子里即可使用配置中心。
+     * 需在导出/监听前 await 完成。重复调用幂等（已 init 时直接返回）；
+     * 中途失败可重试——各阶段自带幂等标记，仅补齐未完成的部分。
      */
     async init(): Promise<this> {
+        if (this.inited) return this;
         this.config.init(this.configOptions);
+        // ① 加载所有类 ②统一处理配置 ③统一处理中间件
+        this.addonManager.collectClasses();
+        await this.addonManager.collectConfigs(this);
+        this.addonManager.collectMiddlewares();
+        // ④ 加载 Addon（onLoad）
         await this.addonManager.loadAll(this);
+        // ⑤ 统一注入中间件：priority 降序（越大越外层）；
+        //    此刻路由尚未注册，因此包裹全部路由
+        this.addonManager.applyMiddleware(this.hono);
         await runLifecycle(
             LifecycleEvent.INIT,
             this,

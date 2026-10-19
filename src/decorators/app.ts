@@ -19,7 +19,7 @@ import {
     Ctx,
 } from "./param";
 import { Valid, Validated } from "./validation";
-import { Before, After, Around } from "./aop";
+import { Use, Before, After } from "./Savant";
 import { OnOpen, OnMessage, OnClose, OnError } from "./websocket";
 
 /** `@App` 装饰器选项 */
@@ -103,9 +103,9 @@ export interface AppDecorators {
     Ctx: typeof Ctx;
     Valid: typeof Valid;
     Validated: typeof Validated;
+    Use: typeof Use;
     Before: typeof Before;
     After: typeof After;
-    Around: typeof Around;
     OnOpen: typeof OnOpen;
     OnMessage: typeof OnMessage;
     OnClose: typeof OnClose;
@@ -116,7 +116,7 @@ export interface AppDecorators {
  * 应用级装饰器工厂：为指定应用生成一组已绑定 appName 的装饰器。
  *
  * 应用内控制器使用此工厂返回的 `@Controller` 时，无需再传 `{ app: "xxx" }`，
- * 工厂会自动把应用名注入。其他装饰器（路由/参数/校验/AOP）直接透传框架实现。
+ * 工厂会自动把应用名注入。其他装饰器（路由/参数/校验/中间件绑定）直接透传框架实现。
  *
  * 建议在每个子应用的 `base/decorators.ts` 中调用一次并导出，
  * 应用的全部元数据（name/basePath/hash/staticDir）集中于此一处声明：
@@ -192,10 +192,11 @@ export function createAppDecorators(options: AppOptions): AppDecorators {
         // 校验装饰器
         Valid,
         Validated,
-        // AOP 装饰器
+        // 中间件绑定装饰器（@Use：命名/带参/内联三种引用形式）
+        Use,
+        // 前置/后置便捷钩子（@Use 内联形式的切片写法）
         Before,
         After,
-        Around,
         // WebSocket 装饰器
         OnOpen,
         OnMessage,

@@ -7,14 +7,18 @@ kirinriki 应用的生命周期分为 **INIT → READY → DESTROY** 三个阶�
 ```
 app.init():
     配置中心就绪
-      → Addon onLoad（按注册顺序）
+      → ① 加载所有 Addon 类（容器实例化，@Autowired 装配）
+      → ② 统一处理 config（收集 @Config → 注册 + 注入属性）
+      → ③ 统一处理中间件（收集 @Savant → 登记名称 + global 进入注入队列）
+      → ④ Addon onLoad（按注册顺序；scope.middleware.use 启用的中间件进入统一队列）
+      → ⑤ 注入 Addon 中间件（priority 降序，大者优先级在外层）
       → INIT 钩子      ← @OnInit / app.onInit
       → 路由挂载
       → READY 钩子     ← @OnReady / app.onReady
 
 app.destroy():
     DESTROY 钩子       ← @OnDestroy / app.onDestroy
-      → Addon onUnload（按加载逆序）
+      → Addon onUnload（按加载逆序；卸载时先摘除其全部中间件与注册名称）
 ```
 
 同一阶段内的执行顺序：
@@ -112,6 +116,8 @@ process.on("SIGTERM", async () => {
 ## 与 Addon 生命周期的关系
 
 - Addon `onLoad` **先于** INIT 钩子执行——Bean 的 `@OnInit` 里可以安全使用 Addon 注册的配置项与能力
+- Addon 通过 `scope.middleware.use` 启用的中间件在 INIT 钩子**之前**按 priority 统一注入（先于路由挂载，包裹全部路由）；控制器亦可通过 `@Use("name")` 按需引用 Addon 注册的命名中间件
+- `destroy()` 卸载 Addon 时，其声明的中间件在 `onUnload` 之前被摘除——先停止拦截，再释放资源
 - Addon `onUnload` **后于** DESTROY 钩子执行——Bean 的 `@OnDestroy` 里 Addon 能力仍可用
 - 详见 [Addon 系统](./addon.md)
 

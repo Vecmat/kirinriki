@@ -1,0 +1,8 @@
+{
+    // 是否在持续运行测试时在导入语句旁显示耗时（Vitest 4.1+ 支持）
+    "vitest.showImportsDuration": true,
+    // 终端或子进程执行方式 ("child_process" 或 "terminal")
+    "vitest.shellType": "terminal",
+    // 强制取消任务超时时间（毫秒）
+    "vitest.forceCancelTimeout": 1000
+}

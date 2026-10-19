@@ -282,6 +282,16 @@ export class ScopedConfig {
         this.assert(key);
         await this.config.set(key, value);
     }
+
+    /**
+     * 声明本命名空间的配置项：owner 自动取本作用域，无需重复写命名空间。
+     * 等价 `registerConfig(fields, this.owner)`——供子应用/插件在加载期
+     * 通过 `scope.config.register(fields)` 调用，不必单独导入注册函数。
+     * @param fields 配置项声明（单个或多个）
+     */
+    register(fields: ConfigField | ConfigField[]): void {
+        configRegistry.register(fields, this.owner);
+    }
 }
 
 /**

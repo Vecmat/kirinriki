@@ -13,8 +13,6 @@ export const TAGGED_PARAM = "TAGGED_PARAM";
 export const PARAM_VALIDATOR_KEY = "PARAM_VALIDATOR_KEY";
 /** 方法级 DTO Schema（@Validated） */
 export const VALIDATE_SCHEMA_KEY = "VALIDATE_SCHEMA_KEY";
-/** 切面定义（@Before/@After/@Around 通过 InjectAspect 注册） */
-export const ASPECT_KEY = "ASPECT_KEY";
 /** 异常处理器（@Catched） */
 export const CATCH_KEY = "CATCH_KEY";
 /** 依赖注入（@Autowired/@Inject） */
@@ -23,6 +21,19 @@ export const AUTOWIRED_KEY = "AUTOWIRED_KEY";
 export const WEBSOCKET_KEY = "WEBSOCKET_KEY";
 /** 生命周期钩子（@OnInit/@OnReady/@OnDestroy） */
 export const LIFECYCLE_KEY = "LIFECYCLE_KEY";
+/** 命名中间件引用（@Use：按名/内联函数启用中间件，可携带绑定参数） */
+export const MIDDLEWARE_KEY = "MIDDLEWARE_KEY";
+/**
+ * Addon 类声明（@Addon：name/version/description）。
+ * 与其余装饰器不同，Addon 元数据通过 Reflect 挂在**类本身**上——
+ * Addon 类通常定义在框架之外的模块，模块求值时注册一次，
+ * 不应随容器重置而丢失（容器只负责实例与 Bean 定义）。
+ */
+export const ADDON_KEY = "ADDON_KEY";
+/** Addon 中间件方法声明（@Savant：名称/优先级/是否全局启用） */
+export const SAVANT_KEY = "SAVANT_KEY";
+/** Addon 配置项声明（@Config：类级或属性级） */
+export const CONFIG_KEY = "CONFIG_KEY";
 
 /** 应用生命周期事件 */
 export enum LifecycleEvent {
@@ -36,12 +47,3 @@ export enum LifecycleEvent {
 
 /** 参数提取函数：从 Hono Context 中提取参数值 */
 export type TParams = (ctx: any, idx?: number) => any;
-
-/** 切面执行函数（Before/After） */
-export type TAspectExec = (ctx: any, ...args: any[]) => any;
-
-/** Around 切面执行函数：调用 next() 执行原方法 */
-export type TAroundExec = (ctx: any, next: () => Promise<any>) => any;
-
-/** 切面注解入参：内联执行函数 或 容器中的组件 id */
-export type TAspectLike = TAspectExec | TAroundExec | string;

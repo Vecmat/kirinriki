@@ -1,20 +1,19 @@
-import type { Hono } from "hono";
+import type { Hono, MiddlewareHandler } from "hono";
 import type { UpgradeWebSocket, WSEvents } from "hono/ws";
 import { container, BeanType, type PropertyMeta } from "./container";
 import {
-    ASPECT_KEY,
     CATCH_KEY,
     CONTROLLER_KEY,
+    MIDDLEWARE_KEY,
     PARAM_VALIDATOR_KEY,
     ROUTER_KEY,
     TAGGED_PARAM,
     VALIDATE_SCHEMA_KEY,
     WEBSOCKET_KEY,
-    type TAspectExec,
 } from "./define";
-import { AopType, type AspectDefinition } from "../decorators/aop";
 import { HttpMethod, type RouterOption } from "../decorators/route";
 import type { ParamDefinition } from "../decorators/param";
+import type { UseMiddlewareDefinition } from "../decorators/Savant";
 import { WsEventType, type WebSocketOption } from "../decorators/websocket";
 import {
     type SchemaDefinition,
@@ -41,7 +40,7 @@ interface RouteInfo {
 /**
  * 路由解析器：读取容器中由装饰器全局注册的元数据，
  * 将 Controller 方法挂载为 Hono 路由，并负责参数构建、
- * AOP 切面织入与 `@Catched` 全局异常分发。
+ * `@Use` 中间件绑定与 `@Catched` 全局异常分发。
  */
 export class Router {
     private hono: Hono;
@@ -55,14 +54,32 @@ export class Router {
     private upgradeWebSocket: UpgradeWebSocket<any, any> | undefined;
     /** 缺少升级函数时只告警一次，避免日志刷屏 */
     private warnedMissingUpgrade = false;
+    /**
+     * 命名中间件解析器：@Use("name") 按名解析 Addon 登记的中间件
+     * （工厂型按 options 实例化）。由宿主应用注入（委托 AddonManager）；
+     * 缺省时 @Use 命名引用一律解析失败。
+     */
+    private middlewareResolver?: (
+        name: string,
+        options?: Record<string, unknown>,
+    ) => MiddlewareHandler | undefined;
 
     /**
      * @param hono 要挂载路由的 Hono 实例
      * @param printRoutes 是否在注册完成后打印路由表格（默认由环境变量 KIRINRIKI_PRINT_ROUTES 控制）
+     * @param middlewareResolver 命名中间件解析器（@Use 注解按名解析，可选）
      */
-    constructor(hono: Hono, printRoutes = false) {
+    constructor(
+        hono: Hono,
+        printRoutes = false,
+        middlewareResolver?: (
+            name: string,
+            options?: Record<string, unknown>,
+        ) => MiddlewareHandler | undefined,
+    ) {
         this.hono = hono;
         this.printRoutes = printRoutes;
+        this.middlewareResolver = middlewareResolver;
     }
 
     /**
@@ -111,10 +128,6 @@ export class Router {
             const basePath = app
                 ? this.normalizePath(app.basePath, ctrlPath)
                 : ctrlPath;
-            const aops = container.listPropertyData<AspectDefinition>(
-                ASPECT_KEY,
-                clazz,
-            );
 
             for (const routeMeta of container.listPropertyData<RouterOption>(
                 ROUTER_KEY,
@@ -124,6 +137,11 @@ export class Router {
                 const methodName = String(route.method);
                 const fullPath = this.normalizePath(basePath, route.path);
                 const httpMethod = route.requestMethod.toLowerCase();
+                // @Use 引用的命名中间件：类级先执行，其后方法级
+                const middlewares = this.resolveRouteMiddleware(
+                    clazz,
+                    methodName,
+                );
 
                 routeList.push({
                     method: route.requestMethod,
@@ -132,36 +150,40 @@ export class Router {
                     handler: `${clazz.name}.${methodName}`,
                 });
 
-                (this.hono as any)[httpMethod](fullPath, async (c: any) => {
-                    try {
-                        const args = await this.buildArgs(c, clazz, methodName);
-                        const result = await this.executeWithAop(
-                            controller,
-                            methodName,
-                            args,
-                            aops,
-                            c,
-                        );
-                        // handler 直接返回 Response 时原样输出
-                        if (result instanceof Response) return result;
-                        return c.json(result);
-                    } catch (err: any) {
-                        const handled = await this.handleException(err, c);
-                        if (handled) return handled;
+                (this.hono as any)[httpMethod](
+                    fullPath,
+                    ...middlewares,
+                    async (c: any) => {
+                        try {
+                            const args = await this.buildArgs(
+                                c,
+                                clazz,
+                                methodName,
+                            );
+                            const result = await (controller as any)[
+                                methodName
+                            ](...args);
+                            // handler 直接返回 Response 时原样输出
+                            if (result instanceof Response) return result;
+                            return c.json(result);
+                        } catch (err: any) {
+                            const handled = await this.handleException(err, c);
+                            if (handled) return handled;
 
-                        const status = err.status || 500;
-                        return c.json(
-                            {
-                                errorKey: err.errorKey || "INTERNAL_ERROR",
-                                message:
-                                    err.errorMessage ||
-                                    err.message ||
-                                    "Internal server error",
-                            },
-                            status,
-                        );
-                    }
-                });
+                            const status = err.status || 500;
+                            return c.json(
+                                {
+                                    errorKey: err.errorKey || "INTERNAL_ERROR",
+                                    message:
+                                        err.errorMessage ||
+                                        err.message ||
+                                        "Internal server error",
+                                },
+                                status,
+                            );
+                        }
+                    },
+                );
             }
 
             // Controller 中声明了任意 @OnOpen/@OnMessage/@OnClose/@OnError 时，
@@ -246,6 +268,41 @@ export class Router {
         const dw = this.displayWidth(str);
         const pad = width - dw;
         return str + " ".repeat(Math.max(pad, 0));
+    }
+
+    /**
+     * 解析路由绑定的中间件：类级先执行，其后方法级。
+     * - `@Use("name")`：按名解析（Addon 已加载完毕）；未登记抛 MIDDLEWARE_NOT_FOUND
+     * - `@Use("name", options)`：工厂型中间件按 options 实例化（相同组合共享实例）
+     * - `@Use(fn)`：内联中间件直接使用
+     */
+    private resolveRouteMiddleware(
+        clazz: any,
+        methodName: string,
+    ): MiddlewareHandler[] {
+        const defs = [
+            ...container.getPropertyData<UseMiddlewareDefinition>(
+                MIDDLEWARE_KEY,
+                clazz,
+            ),
+            ...container.getPropertyData<UseMiddlewareDefinition>(
+                MIDDLEWARE_KEY,
+                clazz,
+                methodName,
+            ),
+        ];
+        return defs.map((d) => {
+            if (d.handler) return d.handler;
+            const mw = this.middlewareResolver?.(d.name!, d.options);
+            if (!mw) {
+                throw new Exception(
+                    "MIDDLEWARE_NOT_FOUND",
+                    `中间件 "${d.name}" 未注册（${clazz.name}.${methodName} @Use）：请确认对应 Addon 已加载`,
+                    500,
+                );
+            }
+            return mw;
+        });
     }
 
     private normalizePath(base: string, path: string): string {
@@ -575,102 +632,6 @@ export class Router {
         }
 
         return args;
-    }
-
-    private async executeWithAop(
-        controller: any,
-        methodName: string,
-        args: any[],
-        aops: PropertyMeta<AspectDefinition>[],
-        ctx: any,
-    ): Promise<any> {
-        const originalMethod = controller[methodName].bind(controller);
-        const next = () => originalMethod(...args);
-
-        // Before
-        for (const a of aops.filter(
-            (a) =>
-                a.propertyKey === methodName && a.data.type === AopType.BEFORE,
-        )) {
-            await this.invokeAspect(a.data, AopType.BEFORE, ctx, args);
-        }
-
-        // Around / 原方法
-        const around = aops.find(
-            (a) =>
-                a.propertyKey === methodName && a.data.type === AopType.AROUND,
-        );
-        let result: any;
-        if (around) {
-            result = await this.invokeAround(
-                around.data,
-                ctx,
-                originalMethod,
-                args,
-            );
-        } else {
-            result = await next();
-        }
-
-        // After
-        for (const a of aops.filter(
-            (a) =>
-                a.propertyKey === methodName && a.data.type === AopType.AFTER,
-        )) {
-            await this.invokeAspect(a.data, AopType.AFTER, ctx, args, result);
-        }
-
-        return result;
-    }
-
-    private async invokeAspect(
-        aop: AspectDefinition,
-        mode: AopType,
-        ctx: any,
-        args: any[],
-        result?: any,
-    ): Promise<void> {
-        if (typeof aop.exec === "string") {
-            // 组件切面：调用组件的 before/after 方法
-            const bean: any = container.get(aop.exec);
-            if (!bean) {
-                console.warn(
-                    `[Kirinriki] Aspect component "${aop.exec}" not found in container, did you import it?`,
-                );
-                return;
-            }
-            if (mode === AopType.BEFORE) {
-                await bean?.before?.(ctx, ...args);
-            } else {
-                await bean?.after?.(ctx, result, ...args);
-            }
-        } else {
-            // 内联函数切面
-            const exec = aop.exec as TAspectExec;
-            if (mode === AopType.BEFORE) {
-                await exec(ctx, ...args);
-            } else {
-                await exec(ctx, result, ...args);
-            }
-        }
-    }
-
-    private async invokeAround(
-        aop: AspectDefinition,
-        ctx: any,
-        originalMethod: Function,
-        args: any[],
-    ): Promise<any> {
-        const next = () => originalMethod(...args);
-        if (typeof aop.exec === "string") {
-            const bean: any = container.get(aop.exec);
-            if (bean?.around) {
-                return bean.around(ctx, originalMethod, ...args);
-            }
-            return next();
-        }
-        // 内联函数切面：exec(ctx, next)
-        return aop.exec(ctx, next);
     }
 
     /**

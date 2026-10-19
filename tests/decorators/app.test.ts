@@ -13,7 +13,6 @@ import {
     Autowired,
     Inject,
 } from "../../src/decorators/component";
-import { Controller } from "../../src/decorators/component";
 import {
     Get,
     Post,
@@ -32,7 +31,7 @@ import {
     Ctx,
 } from "../../src/decorators/param";
 import { Valid, Validated } from "../../src/decorators/validation";
-import { Before, After, Around } from "../../src/decorators/aop";
+import { Use, Before, After } from "../../src/decorators/Savant";
 import {
     OnOpen,
     OnMessage,
@@ -101,9 +100,9 @@ describe("@App / createAppDecorators", () => {
             }
             expect(typeof set.Valid).toBe("function");
             expect(typeof set.Validated).toBe("function");
+            expect(typeof set.Use).toBe("function");
             expect(typeof set.Before).toBe("function");
             expect(typeof set.After).toBe("function");
-            expect(typeof set.Around).toBe("function");
             for (const fn of [
                 set.OnOpen,
                 set.OnMessage,
@@ -160,9 +159,9 @@ describe("@App / createAppDecorators", () => {
             expect(set.Ctx).toBe(Ctx);
             expect(set.Valid).toBe(Valid);
             expect(set.Validated).toBe(Validated);
+            expect(set.Use).toBe(Use);
             expect(set.Before).toBe(Before);
             expect(set.After).toBe(After);
-            expect(set.Around).toBe(Around);
             expect(set.OnOpen).toBe(OnOpen);
             expect(set.OnMessage).toBe(OnMessage);
             expect(set.OnClose).toBe(OnClose);

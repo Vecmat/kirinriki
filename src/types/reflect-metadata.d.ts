@@ -8,6 +8,11 @@ declare namespace Reflect {
         target: any,
         targetKey?: string | symbol,
     ): any;
+    function getOwnMetadata(
+        metadataKey: any,
+        target: any,
+        targetKey?: string | symbol,
+    ): any;
     function defineMetadata(
         metadataKey: any,
         metadataValue: any,

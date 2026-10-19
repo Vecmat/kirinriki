@@ -9,12 +9,7 @@ import {
     BeanScope,
 } from "../../src/core/container";
 import { appRegistry } from "../../src/core/app-registry";
-import {
-    Controller,
-    Service,
-    Component,
-    Autowired,
-} from "../../src/decorators/component";
+import { Controller, Service, Autowired } from "../../src/decorators/component";
 import { Get, Post, HttpMethod } from "../../src/decorators/route";
 import {
     ParamsQuery,
@@ -24,7 +19,7 @@ import {
     Ctx,
 } from "../../src/decorators/param";
 import { Valid, Validated } from "../../src/decorators/validation";
-import { Before, After, Around } from "../../src/decorators/aop";
+import { Use, Before, After } from "../../src/decorators/Savant";
 import {
     Catched,
     Exception as ExceptionDecorator,
@@ -350,13 +345,15 @@ describe("Router", () => {
         });
     });
 
-    describe("AOP 切面", () => {
-        it("@Before 内联函数在方法前执行", async () => {
+    describe("@Use 中间件绑定", () => {
+        it("@Use 内联函数：next() 前后即 before/after", async () => {
             const calls: string[] = [];
             @Controller("/api")
             class Ctrl {
-                @Before((ctx: any) => {
+                @Use(async (c: any, next: any) => {
                     calls.push("before");
+                    await next();
+                    calls.push("after:" + c.res.status);
                 })
                 @Get("/")
                 ok() {
@@ -369,15 +366,72 @@ describe("Router", () => {
             const r = makeRouter();
             const res = await fetchJson(r.hono, "GET", "/api");
             expect(res.status).toBe(200);
-            expect(calls).toEqual(["before", "method"]);
+            expect(calls).toEqual(["before", "method", "after:200"]);
         });
 
-        it("@After 内联函数在方法后执行", async () => {
+        it("@Use 内联函数可短路（不调用 next）与改写响应", async () => {
+            @Controller("/api")
+            class Ctrl {
+                @Use(async (_c: any, next: any) => {
+                    await next();
+                })
+                @Get("/")
+                ok() {
+                    return { ok: true };
+                }
+
+                @Use(async (c: any) => {
+                    return c.json({ blocked: true }, 403);
+                })
+                @Get("/blocked")
+                never() {
+                    return { ok: true };
+                }
+            }
+            void Ctrl;
+
+            const r = makeRouter();
+            const ok = await fetchJson(r.hono, "GET", "/api");
+            expect(ok.body).toEqual({ ok: true });
+            const blocked = await fetchJson(r.hono, "GET", "/api/blocked");
+            expect(blocked.status).toBe(403);
+            expect(blocked.body).toEqual({ blocked: true });
+        });
+
+        it("@Use 方法级与类级同时存在时类级先执行", async () => {
+            const calls: string[] = [];
+            @Controller("/api")
+            @Use(async (_c: any, next: any) => {
+                calls.push("class");
+                await next();
+            })
+            class Ctrl {
+                @Use(async (_c: any, next: any) => {
+                    calls.push("method");
+                    await next();
+                })
+                @Get("/")
+                ok() {
+                    return { ok: true };
+                }
+            }
+            void Ctrl;
+
+            const r = makeRouter();
+            const res = await fetchJson(r.hono, "GET", "/api");
+            expect(res.status).toBe(200);
+            expect(calls).toEqual(["class", "method"]);
+        });
+
+        it("@Before/@After：前/后执行且无需调用 next()", async () => {
             const calls: string[] = [];
             @Controller("/api")
             class Ctrl {
-                @After((ctx: any, result: any) => {
-                    calls.push("after:" + JSON.stringify(result));
+                @After(async (c: any) => {
+                    calls.push("after:" + c.res.status);
+                })
+                @Before((c: any) => {
+                    calls.push("before:" + c.req.method);
                 })
                 @Get("/")
                 ok() {
@@ -388,116 +442,29 @@ describe("Router", () => {
             void Ctrl;
 
             const r = makeRouter();
-            await fetchJson(r.hono, "GET", "/api");
-            expect(calls).toEqual(["method", 'after:{"ok":true}']);
+            const res = await fetchJson(r.hono, "GET", "/api");
+            expect(res.status).toBe(200);
+            expect(calls).toEqual(["before:GET", "method", "after:200"]);
         });
 
-        it("@Around 内联函数通过 next() 调用原方法", async () => {
-            const calls: string[] = [];
+        it("@After 在 handler 抛异常时仍执行（异常已在洋葱内转为错误响应）", async () => {
+            let afterStatus = 0;
             @Controller("/api")
             class Ctrl {
-                @Around((ctx: any, next: any) => {
-                    calls.push("around-before");
-                    const r = next();
-                    calls.push("around-after");
-                    return r;
+                @After(async (c: any) => {
+                    afterStatus = c.res.status;
                 })
-                @Get("/")
-                ok() {
-                    calls.push("method");
-                    return { ok: true };
+                @Get("/err")
+                fail() {
+                    throw new Exception("API_DEMO_ERROR", "出错了", 418);
                 }
             }
             void Ctrl;
 
             const r = makeRouter();
-            const res = await fetchJson(r.hono, "GET", "/api");
-            expect(res.status).toBe(200);
-            expect(calls).toEqual(["around-before", "method", "around-after"]);
-        });
-
-        it("@Before 组件 id 形式：从容器解析 before 方法", async () => {
-            const calls: string[] = [];
-            @Component({ id: "LogAspect" })
-            class LogAspect {
-                before(ctx: any) {
-                    calls.push("LogAspect.before");
-                }
-            }
-            void LogAspect;
-
-            @Controller("/api")
-            class Ctrl {
-                @Before("LogAspect")
-                @Get("/")
-                ok() {
-                    calls.push("method");
-                    return { ok: true };
-                }
-            }
-            void Ctrl;
-
-            const r = makeRouter();
-            const res = await fetchJson(r.hono, "GET", "/api");
-            expect(res.status).toBe(200);
-            expect(calls).toEqual(["LogAspect.before", "method"]);
-        });
-
-        it("@Around 组件 id 形式：调用 bean.around", async () => {
-            const calls: string[] = [];
-            @Component({ id: "TxAspect" })
-            class TxAspect {
-                around(ctx: any, originalMethod: Function, ...args: any[]) {
-                    calls.push("tx-before");
-                    const r = originalMethod(...args);
-                    calls.push("tx-after");
-                    return r;
-                }
-            }
-            void TxAspect;
-
-            @Controller("/api")
-            class Ctrl {
-                @Around("TxAspect")
-                @Get("/")
-                ok() {
-                    calls.push("method");
-                    return { ok: true };
-                }
-            }
-            void Ctrl;
-
-            const r = makeRouter();
-            const res = await fetchJson(r.hono, "GET", "/api");
-            expect(res.status).toBe(200);
-            expect(calls).toEqual(["tx-before", "method", "tx-after"]);
-        });
-
-        it("@Before 引用不存在的组件 id：不抛错（仅告警）", async () => {
-            @Controller("/api")
-            class Ctrl {
-                @Before("MissingAspect")
-                @Get("/")
-                ok() {
-                    return { ok: true };
-                }
-            }
-            void Ctrl;
-
-            const cap = captureConsole();
-            let res: { status: number; body: any };
-            try {
-                const r = makeRouter();
-                res = await fetchJson(r.hono, "GET", "/api");
-            } finally {
-                cap.restore();
-            }
-            expect(res!.status).toBe(200);
-            expect(res!.body).toEqual({ ok: true });
-            const warns = cap.logs.warn.map((a) => a.join(" ")).join("\n");
-            expect(warns).toContain(
-                'Aspect component "MissingAspect" not found in container',
-            );
+            const res = await fetchJson(r.hono, "GET", "/api/err");
+            expect(res.status).toBe(418);
+            expect(afterStatus).toBe(418);
         });
     });
 
@@ -811,6 +778,137 @@ describe("Router", () => {
             const res = await fetchJson(r.hono, "GET", "/w/file");
             expect(res.status).toBe(202);
             expect(res.body).toBeNull(); // 非 JSON 响应体
+        });
+    });
+
+    describe("@Use 命名中间件", () => {
+        /** 构造带命名中间件解析器的 Router */
+        function makeRouterWithResolver(
+            registry: Record<
+                string,
+                (c: any, next: () => Promise<void>) => Promise<void>
+            >,
+        ): { hono: Hono } {
+            const hono = new Hono();
+            const router = new Router(hono, false, (name) => registry[name]);
+            router.registerRoutes();
+            return { hono };
+        }
+
+        it("方法级 @Use 启用对应名称的中间件", async () => {
+            const trace: string[] = [];
+            @Controller("/m")
+            class Ctrl {
+                @Get("/ok")
+                @Use("auth")
+                ok() {
+                    trace.push("handler");
+                    return { ok: 1 };
+                }
+            }
+            void Ctrl;
+
+            const { hono } = makeRouterWithResolver({
+                auth: async (_c, next) => {
+                    trace.push("enter:auth");
+                    await next();
+                    trace.push("exit:auth");
+                },
+            });
+            const res = await fetchJson(hono, "GET", "/m/ok");
+            expect(res.status).toBe(200);
+            expect(trace).toEqual(["enter:auth", "handler", "exit:auth"]);
+        });
+
+        it("类级 + 方法级同时存在时类级先执行", async () => {
+            const trace: string[] = [];
+            @Controller("/m")
+            @Use("cls")
+            class Ctrl {
+                @Get("/ok")
+                @Use("mth")
+                ok() {
+                    return { ok: 1 };
+                }
+            }
+            void Ctrl;
+
+            const mk =
+                (tag: string) => async (_c: any, next: () => Promise<void>) => {
+                    trace.push(`enter:${tag}`);
+                    await next();
+                    trace.push(`exit:${tag}`);
+                };
+            const { hono } = makeRouterWithResolver({
+                cls: mk("cls"),
+                mth: mk("mth"),
+            });
+            await fetchJson(hono, "GET", "/m/ok");
+            expect(trace).toEqual([
+                "enter:cls",
+                "enter:mth",
+                "exit:mth",
+                "exit:cls",
+            ]);
+        });
+
+        it("未标注 @Use 的路由不经过中间件", async () => {
+            const trace: string[] = [];
+            @Controller("/m")
+            class Ctrl {
+                @Get("/plain")
+                plain() {
+                    return { ok: 1 };
+                }
+            }
+            void Ctrl;
+
+            const { hono } = makeRouterWithResolver({
+                auth: async (_c, next) => {
+                    trace.push("hit");
+                    await next();
+                },
+            });
+            const res = await fetchJson(hono, "GET", "/m/plain");
+            expect(res.status).toBe(200);
+            expect(trace).toEqual([]);
+        });
+
+        it("中间件可短路请求（不调用 next）", async () => {
+            @Controller("/m")
+            class Ctrl {
+                @Get("/ok")
+                @Use("guard")
+                ok() {
+                    return { ok: 1 };
+                }
+            }
+            void Ctrl;
+
+            const { hono } = makeRouterWithResolver({
+                guard: async (c, _next) => {
+                    return c.json({ errorKey: "DENIED" }, 403);
+                },
+            });
+            const res = await fetchJson(hono, "GET", "/m/ok");
+            expect(res.status).toBe(403);
+            expect(res.body.errorKey).toBe("DENIED");
+        });
+
+        it("引用未注册的名称在路由注册期抛 MIDDLEWARE_NOT_FOUND", async () => {
+            @Controller("/m")
+            class Ctrl {
+                @Get("/ok")
+                @Use("missing")
+                ok() {
+                    return { ok: 1 };
+                }
+            }
+            void Ctrl;
+
+            expect(() => makeRouterWithResolver({})).toThrow(
+                '中间件 "missing" 未注册',
+            );
         });
     });
 });
