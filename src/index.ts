@@ -31,6 +31,7 @@ export type { KirinrikiOptions } from "./core/app";
 
 export { Container, container, BeanScope, BeanType } from "./core/container";
 export { Exception, createException } from "./core/exception";
+export { ServiceRegistry } from "./core/services";
 export { Router } from "./core/router";
 export { AppRegistry, appRegistry } from "./core/app-registry";
 export type { AppDefinition } from "./core/app-registry";

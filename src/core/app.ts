@@ -6,6 +6,7 @@ import { container, BeanType, BeanScope } from "./container";
 import { LifecycleEvent } from "./define";
 import { runLifecycle, type LifecycleHookFn } from "./lifecycle";
 import { AddonManager, type AddonClass } from "./addon";
+import { ServiceRegistry } from "./services";
 import { Exception } from "./exception";
 import { Logger } from "../kernel/logger";
 import { Config, type ConfigOptions } from "../kernel/config";
@@ -76,6 +77,14 @@ export class Kirinriki {
      * 未来框架的扩展能力（如新增管理器）也从此处挂载，无需改动 AddonScope 接口。
      */
     public addonManager = new AddonManager();
+
+    /**
+     * 共享服务容器：跨 Addon / 应用的运行时对象注册表（Map 语义）。
+     * Addon 在 onLoad 中经 `scope.services.set` 注册（如 Redis 客户端），
+     * 其他 Addon / 主应用按名 get/require——不通过 import 引入。
+     * destroy() 时在全部 Addon 卸载后由框架清空兜底。
+     */
+    public readonly services = new ServiceRegistry();
 
     /** 应用是否已完成 init()；init 后禁止再注册 Addon */
     private inited = false;
@@ -294,6 +303,8 @@ export class Kirinriki {
             this.lifecycleFns[LifecycleEvent.DESTROY],
         );
         await this.addonManager.unloadAll(this);
+        // Addon 已全部卸载（提供方应已自行移除），此处清空兜底
+        this.services.clear();
         return this;
     }
 

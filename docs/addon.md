@@ -257,6 +257,11 @@ class ApiController {
   `scope.middleware.use("ratelimit", { priority: 10, options: { limit: 100 } })`
 - **本体型**（非 factory）中间件被 `@Use(name, options)` 带参引用时 options 被忽略（不报错）
 
+> **何时用工厂形态**：中间件需要**按绑定处区分配置或持有独立状态**（如限流计数器、
+> 缓存键前缀、重试次数）时声明为 `factory: true`，配置随 `@Use` 绑定传入；
+> 无状态或配置全局唯一的中间件（如鉴权、响应包装）保持本体形态，
+> 配置走 Addon 自己的 `@Config` 即可。
+
 另外两种引用形式：
 
 - 内联函数：`@Use(fn)` 吸收了原 AOP 切面能力——`await next()` 之前的代码即 `@Before`，
@@ -274,6 +279,42 @@ class ApiController {
 - **卸载自动清理**：`destroy()` 时框架摘除该 Addon 的全部中间件**及其注册的全部名称**（先于 onUnload 执行）
 - 同一中间件被全局启用且又被 `@Use` 引用时会**执行两次**，请只用一种方式
 - 层级规则：手动 `app.use`（最外层）→ Addon 全局启用（priority 降序，同级按启用顺序）→ 控制器 `@Use`（类级 → 方法级）→ handler
+
+## 共享服务（`scope.services`）
+
+跨 Addon / 应用共享**运行时对象**的按名注册表（挂在 app 下的 Map 容器）。
+适用于连接、客户端等**外部资源句柄**——它们不由容器构造（连接串来自配置、
+生命周期归 Addon 接管），也不应通过 import 引入：
+
+- **提供方**（通常是 Addon）：onLoad 中 `scope.services.set("redis", client)`
+- **消费方**（其他 Addon）：`scope.services.get<Redis>("redis")`；
+  依赖必须存在时用 `require`（未注册抛 `SERVICE_NOT_FOUND`，加载期尽早失败）
+- **主应用**：`app.services.get<Redis>("redis")`
+
+```ts
+// 提供方：Redis Addon 注册客户端
+onLoad(scope: AddonScope) {
+    scope.services.set("redis", new Redis(config));
+}
+async onUnload(scope: AddonScope) {
+    scope.services.remove("redis");   // 卸载时自行移除并释放连接
+}
+
+// 消费方：RateLimit Addon 按名获取（redis Addon 须先注册）
+onLoad(scope: AddonScope) {
+    this.redis = scope.services.get<RateLimitRedisClient>("redis");
+    if (!this.redis) throw new Exception("SERVICE_NOT_FOUND", "请先注册 redis Addon", 409);
+}
+```
+
+与 IOC 容器（`scope.container`）的分工：容器面向可实例化的**类 Bean**
+（`@Autowired` 构造注入）；共享服务面向**运行期资源句柄**（客户端、连接、
+任务调度器等）。key 约定：以提供方 Addon 名命名（`"redis"`），子对象点分
+（`"redis.sub"`）。重复注册抛 `SERVICE_DUPLICATED` (409)；应用 destroy 时
+框架在全部 Addon 卸载后清空兜底。
+
+官方示例：[Addons/Redis](../../Addons/Redis/README.md)（注册 `"redis"` 客户端）→
+[Addons/RateLimit](../../Addons/RateLimit/README.md)（消费方，工厂型限流中间件）。
 
 ## 声明配置（`@Config`）
 
@@ -317,9 +358,10 @@ class CacheAddon implements IAddon {}
 | `scope.container` | `Container` | IOC 容器：注册/解析 Bean（插件可注册自己提供的服务） |
 | `scope.config` | `ScopedConfig` | 配置模块：`get`/`set` 读写本命名空间，`register` 声明配置项（owner 自动绑定，无需写自己的名字） |
 | `scope.middleware` | `AddonMiddlewareModule` | 中间件模块：`register` 注册命名中间件、`use` 全局启用 |
+| `scope.services` | `ServiceRegistry` | 共享服务模块：跨 Addon / 应用的运行时对象注册表（`set`/`get`/`require`/`remove`），与 `app.services` 同一实例 |
 | `scope.options` | 注册时传入 | Addon 私有选项，泛型 `AddonClass<TOptions>`；`this.options` 亦可读取 |
 
-**设计意图**：scope 按模块组织应用在装载期提供的能力，插件因此**无需从框架导入任何能力函数**——声明配置用 `scope.config.register`、注册中间件用 `scope.middleware.register`、注册服务用 `scope.container.register`。后续新增子系统（事件总线、任务调度器等）只需在 scope 上追加模块字段，已有 Addon 实现不受影响。
+**设计意图**：scope 按模块组织应用在装载期提供的能力，插件因此**无需从框架导入任何能力函数**——声明配置用 `scope.config.register`、注册中间件用 `scope.middleware.register`、共享运行时服务用 `scope.services`。后续新增子系统（事件总线、任务调度器等）只需在 scope 上追加模块字段，已有 Addon 实现不受影响。
 
 ### 配置命名空间隔离
 
@@ -425,6 +467,8 @@ await app.destroy(); // 定时器被清理
 | Addon | 能力 |
 |-------|------|
 | `session` | ✅ [Addons/Session](../../Addons/Session/README.md)：`@ParamsSession()` + SessionService + 可插拔存储 |
+| `redis` | ✅ [Addons/Redis](../../Addons/Redis/README.md)：Redis 客户端管理 + 共享服务注册（`"redis"`） |
+| `ratelimit` | ✅ [Addons/RateLimit](../../Addons/RateLimit/README.md)：基于 Redis 的固定窗口限流，`@Use("ratelimit", { limit })` 按处传参 |
 | `addon-hub` | 跨应用通信：事件总线 + 命名空间 KV（数据属于 Addon，应用互不感知） |
 | `addon-auth` | 鉴权：`@Auth()` / `@Roles()` + JWT 策略 |
 | `response` | ✅ [Addons/Response](../../Addons/Response/README.md)：响应统一包装 `{ code, data, message }` + `@Raw()` 跳过 |

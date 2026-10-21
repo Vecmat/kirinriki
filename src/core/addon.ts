@@ -5,6 +5,7 @@ import { addonMetaOf } from "../decorators/addon";
 import { listConfigs } from "../decorators/Config";
 import { listSavants } from "../decorators/Savant";
 import type { ScopedConfig } from "../kernel/config";
+import type { ServiceRegistry } from "./services";
 import { Exception } from "./exception";
 
 /**
@@ -113,9 +114,11 @@ export interface AddonMiddlewareModule {
  * Addon 作用域：`onLoad` / `onUnload` 的入参。
  *
  * 它是应用在**装载期**暴露给插件的能力集合（外立面），按模块组织——
- * `config` 配置模块、`middleware` 中间件模块、`container` 容器模块。
+ * `config` 配置模块、`middleware` 中间件模块、`container` 容器模块、
+ * `services` 共享服务模块。
  * 插件因此**无需从框架导入能力函数**：声明配置项用 `scope.config.register`，
- * 注册中间件用 `scope.middleware.register`，不必再 import `registerConfig` 等。
+ * 注册中间件用 `scope.middleware.register`，共享运行时对象用 `scope.services`，
+ * 不必再 import `registerConfig` 等。
  *
  * 框架后续新增子系统（事件总线、任务调度器等）只需在此追加模块字段，
  * 已有 Addon 实现不受影响；同时以独立对象而非直接传 `app` 的形式提供，
@@ -138,6 +141,14 @@ export interface AddonScope<TOptions = unknown> {
     config: ScopedConfig;
     /** 中间件模块：注册命名中间件 / 全局启用 */
     middleware: AddonMiddlewareModule;
+    /**
+     * 共享服务模块：跨 Addon / 应用的运行时对象注册表（Map 语义）。
+     * 提供方在 onLoad 中 set（如 Redis Addon 注册 "redis" 客户端），
+     * 消费方 get/require 按名获取——不通过 import 引入，也不参与
+     * IOC 构造注入，适合连接、客户端等外部资源句柄。
+     * 卸载时提供方应在 onUnload 中 remove；应用 destroy 时框架清空兜底。
+     */
+    services: ServiceRegistry;
     /** 注册 Addon 时传入的私有选项（app.addon(Clazz, options)） */
     options: TOptions;
 }
@@ -638,6 +649,8 @@ export class AddonManager {
                 use: (target, options) =>
                     this.declareMiddleware(record, target, options),
             },
+            // 共享服务模块：跨 Addon / 应用的运行时对象注册表（app.services 同一实例）
+            services: app.services,
             options: record.options,
         };
     }

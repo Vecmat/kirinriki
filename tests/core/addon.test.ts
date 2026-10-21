@@ -246,10 +246,11 @@ describe("Addon 生命周期", () => {
             expect(captured).toEqual({ size: 42 });
         });
 
-        it("scope 按模块暴露能力：container / config / middleware", async () => {
+        it("scope 按模块暴露能力：container / config / middleware / services", async () => {
             let keys: string[] = [];
             let hasContainer = false;
             let hasMiddlewareFns = false;
+            let sameServices = false;
             @Addon("modules")
             class Modules implements IAddon {
                 onLoad(scope: AddonScope): void {
@@ -259,6 +260,7 @@ describe("Addon 生命周期", () => {
                     hasMiddlewareFns =
                         typeof scope.middleware?.register === "function" &&
                         typeof scope.middleware?.use === "function";
+                    sameServices = scope.services === scope.app.services;
                 }
             }
 
@@ -270,9 +272,11 @@ describe("Addon 生命周期", () => {
                 "container",
                 "middleware",
                 "options",
+                "services",
             ]);
             expect(hasContainer).toBe(true);
             expect(hasMiddlewareFns).toBe(true);
+            expect(sameServices).toBe(true);
         });
 
         it("scope.config.register 声明项归属本命名空间（越权仍被拦截）", async () => {

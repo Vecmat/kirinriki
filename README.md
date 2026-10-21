@@ -62,6 +62,7 @@ Japanese: `キリンリキ` `Kirinriki`
 - **参数提取**：`@ParamsQuery`、`@ParamsPath`、`@ParamsBody`、`@ParamsHeader`
 - **自动验证**：`@Valid`、`@Validated` 配合 zod
 - **中间件绑定**：`@Use` 按名 / 带参 / 内联函数三种形式，`@Before` / `@After` 前置后置钩子，工厂型中间件可按使用处配置
+- **共享服务**：`app.services` 跨 Addon / 应用按名共享运行时对象（Redis 客户端等），不通过 import 引入
 - **异常处理**：`@Exception`、`@Catched` 全局错误捕获（支持 `API_*` 通配）
 - **跨运行时**：Node.js、Deno、Bun、Cloudflare Workers（框架仅依赖 hono / zod / reflect-metadata）
 
@@ -163,12 +164,16 @@ export class UserController {
 import { Use, Before, After } from "@vecmat/kirinriki";
 
 @Controller("/api")
-@Use("ratelimit", { limit: 1000 }) // 类级：按名绑定并传参（工厂型中间件）
+@Use("ratelimit", { limit: 1000 }) // 类级：1000 次/分钟
 export class ApiController {
     @Before((c) => console.log("[Before]", c.req.method, c.req.path)) // 前置钩子
     @After(async (c) => console.log("[After]", c.res.status))         // 后置钩子
     @Get("/data")
     async getData() { /* ... */ }
+
+    @Get("/heavy")
+    @Use("ratelimit", { limit: 100 })  // 方法级：覆盖为 100 次/分钟
+    async heavy() { /* ... */ }
 }
 ```
 
